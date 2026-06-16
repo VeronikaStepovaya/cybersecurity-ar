@@ -8,27 +8,24 @@ import { MLIDS } from './ml_ids.js';
 let scene, camera, renderer, controls;
 let networkManager, firewall, trafficAnalyzer, mlIDS;
 let arModeActive = false;
+let arSession = null;
 
 // Ініціалізація сцени
 function init() {
-    // Створення сцени
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a2a);
     scene.fog = new THREE.FogExp2(0x0a0a2a, 0.008);
     
-    // Камера
     camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(2, 1.5, 3);
     camera.lookAt(0, 0, 0);
     
-    // Рендерер
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     document.body.appendChild(renderer.domElement);
     
-    // Орбіт контрол для 3D навігації (замість AR на десктопі)
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
@@ -37,12 +34,9 @@ function init() {
     controls.enablePan = true;
     controls.target.set(0, 0, 0);
     
-    // Освітлення
-    // Ambient light
     const ambientLight = new THREE.AmbientLight(0x404060);
     scene.add(ambientLight);
     
-    // Головне світло
     const mainLight = new THREE.DirectionalLight(0xffffff, 1);
     mainLight.position.set(2, 3, 2);
     mainLight.castShadow = true;
@@ -51,24 +45,20 @@ function init() {
     mainLight.shadow.mapSize.height = 1024;
     scene.add(mainLight);
     
-    // Заповнююче світло знизу
     const fillLight = new THREE.PointLight(0x4466ff, 0.3);
     fillLight.position.set(0, -1, 0);
     scene.add(fillLight);
     
-    // Заповнююче світло ззаду
     const backLight = new THREE.PointLight(0xff6644, 0.2);
     backLight.position.set(0, 1, -2);
     scene.add(backLight);
     
-    // Підлога-сітка для орієнтації в просторі
     const gridHelper = new THREE.GridHelper(8, 20, 0x00ff88, 0x3366aa);
     gridHelper.position.y = -0.5;
     gridHelper.material.transparent = true;
     gridHelper.material.opacity = 0.5;
     scene.add(gridHelper);
     
-    // Декоративні частинки в повітрі
     const particleCount = 500;
     const particlesGeometry = new THREE.BufferGeometry();
     const particlesPositions = new Float32Array(particleCount * 3);
@@ -82,7 +72,6 @@ function init() {
     const particles = new THREE.Points(particlesGeometry, particlesMaterial);
     scene.add(particles);
     
-    // Анімація частинок
     function animateParticles() {
         particles.rotation.y += 0.001;
         particles.rotation.x += 0.0005;
@@ -90,48 +79,39 @@ function init() {
     }
     animateParticles();
     
-    // Ініціалізація систем
     networkManager = new NetworkManager(scene);
     firewall = new Firewall();
     trafficAnalyzer = new TrafficAnalyzer();
     mlIDS = new MLIDS();
     
-    // Навчання ML моделі
     showStatus('🔄 Навчання ML моделі детекції загроз...', '#ffaa00');
     mlIDS.trainModel().then(() => {
         console.log('✅ ML модель навчена');
         showStatus('✅ ML система детекції вторгнень активована', '#00ff00');
     });
     
-    // Створення мережевих вузлів
     networkManager.createNetworkNodes();
-    
-    // Налаштування UI
     setupUI();
     
-    // Періодична генерація нормального трафіку
     setInterval(() => {
         if (networkManager && trafficAnalyzer) {
             generateNormalTraffic();
         }
     }, 2000);
     
-    // Анімація
     animate();
 }
 
 function setupUI() {
-    // Показуємо панель статистики
     document.getElementById('stats-panel').classList.remove('hidden');
     document.getElementById('info').style.display = 'none';
     
-    // Кнопки симуляції атак
     document.getElementById('simulate-ddos').addEventListener('click', () => simulateDDoSAttack());
     document.getElementById('simulate-scan').addEventListener('click', () => simulatePortScan());
     document.getElementById('reset-attacks').addEventListener('click', () => resetNetwork());
 
-        // ============================================
-    // 🆕 КНОПКА "AR Режим (WebXR)"
+    // ============================================
+    // 🆕 КНОПКА "AR Режим (WebXR)" - ВИПРАВЛЕНО!
     // ============================================
     const arButton = document.createElement('button');
     arButton.textContent = '📱 AR Режим (WebXR)';
@@ -159,54 +139,62 @@ function setupUI() {
     };
     
     arButton.onclick = async () => {
-    if (!navigator.xr) {
-        showStatus('⚠️ WebXR не підтримується. Використовуйте 3D-режим.', '#ffaa00');
-        return;
-    }
-    
-    try {
-        // Перевіряємо підтримку AR
-        const supported = await navigator.xr.isSessionSupported('immersive-ar');
-        
-        if (!supported) {
-            showStatus('⚠️ Ваш пристрій не підтримує AR.', '#ffaa00');
+        if (!navigator.xr) {
+            showStatus('❌ WebXR не підтримується', '#ff0000');
             return;
         }
-        
-        showStatus('📱 Запуск AR... Наведіть камеру на підлогу.', '#00ff00');
-        
-        // ЗАПУСКАЄМО AR СЕСІЮ
-        const session = await navigator.xr.requestSession('immersive-ar', {
-            requiredFeatures: ['hit-test'],
-            optionalFeatures: ['dom-overlay'],
-            domOverlay: { root: document.body }
-        });
-        
-        // Додаємо об'єкти в AR
-        const xrReferenceSpace = await session.requestReferenceSpace('local');
-        
-        // Підключаємо Three.js до AR
-        renderer.xr.setSession(session);
-        
-        // Оновлюємо сцену для AR
-        showStatus('✅ AR активовано! Шукайте об\'єкти в просторі.', '#00ff00');
-        
-        // Запускаємо AR анімацію
-        renderer.setAnimationLoop((timestamp, frame) => {
-            if (frame) {
-                // Оновлення позицій в AR
+
+        showStatus('⏳ Перевірка AR...', '#ffaa00');
+
+        try {
+            const supported = await navigator.xr.isSessionSupported('immersive-ar');
+            if (!supported) {
+                showStatus('❌ AR не підтримується', '#ff0000');
+                return;
             }
-            renderer.render(scene, camera);
-        });
-        
-    } catch (error) {
-        console.error('Помилка AR:', error);
-        showStatus('❌ Помилка AR: ' + error.message, '#ff0000');
-    }
-};
+
+            // ⭐⭐⭐ ЗАПИТУЄМО КАМЕРУ ЯВНО! ⭐⭐⭐
+            showStatus('📸 Запит на камеру...', '#ffaa00');
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+                stream.getTracks().forEach(track => track.stop());
+                showStatus('✅ Доступ до камери отримано!', '#00ff00');
+            } catch (camError) {
+                showStatus('❌ Немає доступу до камери: ' + camError.message, '#ff0000');
+                return;
+            }
+
+            showStatus('🚀 Запуск AR сесії...', '#00ff00');
+
+            const session = await navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['hit-test'],
+                optionalFeatures: ['dom-overlay'],
+                domOverlay: { root: document.body }
+            });
+
+            arSession = session;
+            renderer.xr.setSession(session);
+            const referenceSpace = await session.requestReferenceSpace('local');
+
+            showStatus('✅ AR активовано! Наведіть камеру на підлогу.', '#00ff00');
+
+            renderer.setAnimationLoop((timestamp, frame) => {
+                if (frame) {
+                    // hit-test логіка
+                }
+                renderer.render(scene, camera);
+            });
+
+        } catch (error) {
+            console.error('Помилка AR:', error);
+            showStatus('❌ Помилка: ' + error.message, '#ff0000');
+        }
+    };
     
     document.body.appendChild(arButton);
-    
 }
 
 function generateNormalTraffic() {
@@ -237,8 +225,7 @@ function generateNormalTraffic() {
 function simulateDDoSAttack() {
     showStatus('⚠️ DDoS АТАКА ВИЯВЛЕНА! Блокування IP...', '#ff0000');
     
-    // Збільшуємо інтенсивність атаки
-    const attackPackets = 120; // більше пакетів
+    const attackPackets = 120;
     let blockedCount = 0;
     
     for (let i = 0; i < attackPackets; i++) {
@@ -248,7 +235,7 @@ function simulateDDoSAttack() {
                 sourceIP: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
                 destIP: '192.168.1.100',
                 type: 'ddos',
-                size: Math.random() * 800 + 600, // великі пакети
+                size: Math.random() * 800 + 600,
                 timestamp: Date.now(),
                 protocol: 'TCP',
                 port: Math.floor(Math.random() * 65535)
@@ -259,10 +246,9 @@ function simulateDDoSAttack() {
             if (result === 'blocked') blockedCount++;
             networkManager.animateAttackPacket(packet, 'ddos');
             
-            // ML детекція з реальними параметрами атаки
             const stats = trafficAnalyzer.getStats();
             const threat = mlIDS.detectThreat({
-                packetRate: stats.packetRate + 150, // імітуємо високу швидкість
+                packetRate: stats.packetRate + 150,
                 bytesPerSecond: stats.totalBytes / Math.max(1, stats.totalPackets) * (stats.packetRate + 150),
                 uniquePorts: stats.uniquePorts + 50,
                 packetSize: packet.size,
@@ -270,7 +256,7 @@ function simulateDDoSAttack() {
                 connectionDuration: 30
             });
             updateThreatDisplay(threat);
-        }, i * 40); // швидше надходження пакетів
+        }, i * 40);
     }
     
     setTimeout(() => {
@@ -278,28 +264,6 @@ function simulateDDoSAttack() {
         console.log(`DDoS атака завершена: заблоковано ${blockedCount}/${attackPackets} пакетів`);
         updateStats();
         
-        // Фінальна перевірка загрози
-        const finalThreat = mlIDS.detectThreat({
-            packetRate: 200,
-            bytesPerSecond: 150000,
-            uniquePorts: 80,
-            packetSize: 700,
-            protocol: 'TCP',
-            connectionDuration: 30
-        });
-        updateThreatDisplay(finalThreat);
-        
-        if (finalThreat.level === 'High') {
-            showStatus('🔴 КРИТИЧНО! ML IDS підтверджує DDoS атаку - ВИСОКИЙ рівень загрози', '#ff0000');
-        }
-    }, 5000);
-    
-    setTimeout(() => {
-        const stats = trafficAnalyzer.getStats();
-        console.log(`DDoS атака завершена: заблоковано ${blockedCount}/${attackPackets} пакетів`);
-        updateStats();
-        
-        // Фінальна перевірка загрози
         const finalThreat = mlIDS.detectThreat({
             packetRate: 200,
             bytesPerSecond: 150000,
@@ -369,7 +333,6 @@ function resetNetwork() {
     threatDiv.className = '';
 }
 
-
 function updateStats() {
     const stats = trafficAnalyzer.getStats();
     const statsDiv = document.getElementById('traffic-stats');
@@ -429,20 +392,11 @@ function showStatus(message, color) {
 
 function animate() {
     requestAnimationFrame(animate);
-    
-    // Оновлення контролів
     controls.update();
+    if (networkManager) networkManager.updateAnimations();
     
-    // Оновлення анімацій мережі
-    if (networkManager) {
-        networkManager.updateAnimations();
-    }
-    
-    // Періодичне оновлення статистики (кожні 30 кадрів)
     if (Math.random() < 0.03) {
         updateStats();
-        
-        // Автоматична ML перевірка
         const stats = trafficAnalyzer.getStats();
         if (stats.totalPackets > 10) {
             const threat = mlIDS.detectThreat({
@@ -459,9 +413,7 @@ function animate() {
         }
     }
     
-    // Рендер
     renderer.render(scene, camera);
 }
 
-// Запуск додатку
 init();
