@@ -129,6 +129,51 @@ function setupUI() {
     document.getElementById('simulate-ddos').addEventListener('click', () => simulateDDoSAttack());
     document.getElementById('simulate-scan').addEventListener('click', () => simulatePortScan());
     document.getElementById('reset-attacks').addEventListener('click', () => resetNetwork());
+
+        // ============================================
+    // 🆕 КНОПКА "AR Режим (WebXR)"
+    // ============================================
+    const arButton = document.createElement('button');
+    arButton.textContent = '📱 AR Режим (WebXR)';
+    arButton.style.position = 'absolute';
+    arButton.style.bottom = '80px';
+    arButton.style.right = '20px';
+    arButton.style.background = 'rgba(0,0,0,0.85)';
+    arButton.style.color = '#00ff88';
+    arButton.style.border = '2px solid #00ff88';
+    arButton.style.padding = '10px 18px';
+    arButton.style.borderRadius = '8px';
+    arButton.style.cursor = 'pointer';
+    arButton.style.zIndex = '20';
+    arButton.style.fontFamily = 'monospace';
+    arButton.style.fontWeight = 'bold';
+    arButton.style.transition = 'all 0.3s';
+    
+    arButton.onmouseover = () => {
+        arButton.style.background = '#00ff88';
+        arButton.style.color = 'black';
+    };
+    arButton.onmouseout = () => {
+        arButton.style.background = 'rgba(0,0,0,0.85)';
+        arButton.style.color = '#00ff88';
+    };
+    
+    arButton.onclick = () => {
+        showStatus('📱 WebXR AR доступний на сумісних пристроях з камерою (Android + Chrome)', '#ffaa00');
+        if (navigator.xr) {
+            navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                if (supported) {
+                    showStatus('✅ Ваш пристрій підтримує AR! Наведіть камеру на підлогу.', '#00ff00');
+                } else {
+                    showStatus('⚠️ Ваш пристрій не підтримує AR. Використовуйте 3D-режим.', '#ffaa00');
+                }
+            });
+        } else {
+            showStatus('⚠️ WebXR не підтримується. Використовуйте 3D-режим з мишею.', '#ffaa00');
+        }
+    };
+    
+    document.body.appendChild(arButton);
     
 }
 
