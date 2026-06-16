@@ -158,20 +158,52 @@ function setupUI() {
         arButton.style.color = '#00ff88';
     };
     
-    arButton.onclick = () => {
-        showStatus('📱 WebXR AR доступний на сумісних пристроях з камерою (Android + Chrome)', '#ffaa00');
-        if (navigator.xr) {
-            navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
-                if (supported) {
-                    showStatus('✅ Ваш пристрій підтримує AR! Наведіть камеру на підлогу.', '#00ff00');
-                } else {
-                    showStatus('⚠️ Ваш пристрій не підтримує AR. Використовуйте 3D-режим.', '#ffaa00');
-                }
-            });
-        } else {
-            showStatus('⚠️ WebXR не підтримується. Використовуйте 3D-режим з мишею.', '#ffaa00');
+    arButton.onclick = async () => {
+    if (!navigator.xr) {
+        showStatus('⚠️ WebXR не підтримується. Використовуйте 3D-режим.', '#ffaa00');
+        return;
+    }
+    
+    try {
+        // Перевіряємо підтримку AR
+        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+        
+        if (!supported) {
+            showStatus('⚠️ Ваш пристрій не підтримує AR.', '#ffaa00');
+            return;
         }
-    };
+        
+        showStatus('📱 Запуск AR... Наведіть камеру на підлогу.', '#00ff00');
+        
+        // ЗАПУСКАЄМО AR СЕСІЮ
+        const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: document.body }
+        });
+        
+        // Додаємо об'єкти в AR
+        const xrReferenceSpace = await session.requestReferenceSpace('local');
+        
+        // Підключаємо Three.js до AR
+        renderer.xr.setSession(session);
+        
+        // Оновлюємо сцену для AR
+        showStatus('✅ AR активовано! Шукайте об\'єкти в просторі.', '#00ff00');
+        
+        // Запускаємо AR анімацію
+        renderer.setAnimationLoop((timestamp, frame) => {
+            if (frame) {
+                // Оновлення позицій в AR
+            }
+            renderer.render(scene, camera);
+        });
+        
+    } catch (error) {
+        console.error('Помилка AR:', error);
+        showStatus('❌ Помилка AR: ' + error.message, '#ff0000');
+    }
+};
     
     document.body.appendChild(arButton);
     
