@@ -139,63 +139,72 @@ function setupUI() {
     };
     
     arButton.onclick = async () => {
-        if (!navigator.xr) {
-            showStatus('❌ WebXR не підтримується', '#ff0000');
+    // Перевіряємо WebXR
+    if (!navigator.xr) {
+        showStatus('❌ WebXR не підтримується. Використовуйте 3D-режим.', '#ff0000');
+        return;
+    }
+
+    showStatus('⏳ Перевірка AR...', '#ffaa00');
+
+    try {
+        // Перевіряємо підтримку AR
+        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+        
+        if (!supported) {
+            showStatus('❌ AR не підтримується на цьому пристрої', '#ff0000');
             return;
         }
 
-        showStatus('⏳ Перевірка AR...', '#ffaa00');
-
+        // ЗАПИТУЄМО КАМЕРУ
         try {
-            const supported = await navigator.xr.isSessionSupported('immersive-ar');
-            if (!supported) {
-                showStatus('❌ AR не підтримується', '#ff0000');
-                return;
-            }
-
-            // ⭐⭐⭐ ЗАПИТУЄМО КАМЕРУ ЯВНО! ⭐⭐⭐
-            showStatus('📸 Запит на камеру...', '#ffaa00');
-            
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment' }
-                });
-                stream.getTracks().forEach(track => track.stop());
-                showStatus('✅ Доступ до камери отримано!', '#00ff00');
-            } catch (camError) {
-                showStatus('❌ Немає доступу до камери: ' + camError.message, '#ff0000');
-                return;
-            }
-
-            showStatus('🚀 Запуск AR сесії...', '#00ff00');
-
-            const session = await navigator.xr.requestSession('immersive-ar', {
-                requiredFeatures: ['hit-test'],
-                optionalFeatures: ['dom-overlay'],
-                domOverlay: { root: document.body }
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
             });
-
-            arSession = session;
-            renderer.xr.setSession(session);
-            const referenceSpace = await session.requestReferenceSpace('local');
-
-            showStatus('✅ AR активовано! Наведіть камеру на підлогу.', '#00ff00');
-
-            renderer.setAnimationLoop((timestamp, frame) => {
-                if (frame) {
-                    // hit-test логіка
-                }
-                renderer.render(scene, camera);
-            });
-
-        } catch (error) {
-            console.error('Помилка AR:', error);
-            showStatus('❌ Помилка: ' + error.message, '#ff0000');
+            stream.getTracks().forEach(track => track.stop());
+        } catch (camError) {
+            showStatus('❌ Немає доступу до камери', '#ff0000');
+            return;
         }
-    };
-    
-    document.body.appendChild(arButton);
-}
+
+        showStatus('🚀 Запуск AR...', '#00ff00');
+
+        // ЗАПУСКАЄМО AR З ОБРОБКОЮ ПОМИЛОК
+        const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: document.body }
+        });
+
+        renderer.xr.setSession(session);
+        
+        showStatus('✅ AR активовано! Шукайте об\'єкти.', '#00ff00');
+
+        // ОНОВЛЮЄМО АНІМАЦІЮ
+        renderer.setAnimationLoop((timestamp, frame) => {
+            if (frame) {
+                // hit-test логіка
+            }
+            renderer.render(scene, camera);
+        });
+
+    } catch (error) {
+        console.error('Помилка AR:', error);
+        
+        // ОБРОБКА КОНКРЕТНИХ ПОМИЛОК
+        if (error.message.includes('session')) {
+            showStatus('❌ Не вдалося запустити AR-сесію. Спробуйте ще раз.', '#ff0000');
+        } else if (error.message.includes('permission')) {
+            showStatus('❌ Дозвольте доступ до камери в налаштуваннях.', '#ff0000');
+        } else {
+            showStatus('❌ Помилка AR: ' + error.message, '#ff0000');
+        }
+        
+        // ПОВЕРТАЄМОСЯ В 3D-РЕЖИМ
+        renderer.setAnimationLoop(null);
+        renderer.setAnimationLoop(animate);
+    }
+};
 
 function generateNormalTraffic() {
     const protocols = ['TCP', 'UDP'];
