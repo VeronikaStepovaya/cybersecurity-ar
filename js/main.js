@@ -205,8 +205,7 @@ function generateNormalTraffic() {
 function simulateDDoSAttack() {
     showStatus('⚠️ DDoS АТАКА ВИЯВЛЕНА! Блокування IP...', '#ff0000');
     
-    // Збільшуємо інтенсивність атаки
-    const attackPackets = 120; // більше пакетів
+    const attackPackets = 120;
     let blockedCount = 0;
     
     for (let i = 0; i < attackPackets; i++) {
@@ -216,7 +215,7 @@ function simulateDDoSAttack() {
                 sourceIP: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
                 destIP: '192.168.1.100',
                 type: 'ddos',
-                size: Math.random() * 800 + 600, // великі пакети
+                size: Math.random() * 800 + 600,
                 timestamp: Date.now(),
                 protocol: 'TCP',
                 port: Math.floor(Math.random() * 65535)
@@ -227,10 +226,9 @@ function simulateDDoSAttack() {
             if (result === 'blocked') blockedCount++;
             networkManager.animateAttackPacket(packet, 'ddos');
             
-            // ML детекція з реальними параметрами атаки
             const stats = trafficAnalyzer.getStats();
             const threat = mlIDS.detectThreat({
-                packetRate: stats.packetRate + 150, // імітуємо високу швидкість
+                packetRate: stats.packetRate + 150,
                 bytesPerSecond: stats.totalBytes / Math.max(1, stats.totalPackets) * (stats.packetRate + 150),
                 uniquePorts: stats.uniquePorts + 50,
                 packetSize: packet.size,
@@ -238,36 +236,15 @@ function simulateDDoSAttack() {
                 connectionDuration: 30
             });
             updateThreatDisplay(threat);
-        }, i * 40); // швидше надходження пакетів
+        }, i * 40);
     }
     
+    // ОДИН РАЗ - ПІСЛЯ ЗАВЕРШЕННЯ АТАКИ
     setTimeout(() => {
         const stats = trafficAnalyzer.getStats();
         console.log(`DDoS атака завершена: заблоковано ${blockedCount}/${attackPackets} пакетів`);
         updateStats();
         
-        // Фінальна перевірка загрози
-        const finalThreat = mlIDS.detectThreat({
-            packetRate: 200,
-            bytesPerSecond: 150000,
-            uniquePorts: 80,
-            packetSize: 700,
-            protocol: 'TCP',
-            connectionDuration: 30
-        });
-        updateThreatDisplay(finalThreat);
-        
-        if (finalThreat.level === 'High') {
-            showStatus('🔴 КРИТИЧНО! ML IDS підтверджує DDoS атаку - ВИСОКИЙ рівень загрози', '#ff0000');
-        }
-    }, 5000);
-    
-    setTimeout(() => {
-        const stats = trafficAnalyzer.getStats();
-        console.log(`DDoS атака завершена: заблоковано ${blockedCount}/${attackPackets} пакетів`);
-        updateStats();
-        
-        // Фінальна перевірка загрози
         const finalThreat = mlIDS.detectThreat({
             packetRate: 200,
             bytesPerSecond: 150000,
