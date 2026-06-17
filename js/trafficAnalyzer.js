@@ -10,57 +10,79 @@ export class TrafficAnalyzer {
             packetRate: 0,
             uniquePorts: new Set(),
             protocolStats: { TCP: 0, UDP: 0, ICMP: 0 },
-            ipStats: new Map()
+            ipStats: new Map(),
+            topIPs: []
         };
-        
+
         this.lastTimestamp = Date.now();
         this.packetCountLastSec = 0;
-        
-        setInterval(() => this.calculatePacketRate(), 1000);
+        this.rateInterval = setInterval(() => this.calculateRate(), 1000);
     }
-    
+
+    // ============================================
+    // ДОДАВАННЯ ПАКЕТА
+    // ============================================
     addPacket(packet, status) {
-        this.packets.push({
+        const entry = {
             ...packet,
             status: status,
             timestamp: Date.now()
-        });
-        
+        };
+        this.packets.push(entry);
+
         // Оновлення статистики
         this.stats.totalPackets++;
         this.stats.totalBytes += packet.size || 0;
         this.stats.uniquePorts.add(packet.port);
-        
+
         if (status === 'blocked') this.stats.blockedPackets++;
         else if (status === 'suspicious') this.stats.suspiciousPackets++;
         else if (status === 'allowed') this.stats.allowedPackets++;
-        
-        // Статистика за протоколами
+
+        // Протоколи
         if (this.stats.protocolStats[packet.protocol] !== undefined) {
             this.stats.protocolStats[packet.protocol]++;
         }
-        
-        // Статистика за IP
+
+        // IP статистика
         const ipCount = this.stats.ipStats.get(packet.sourceIP) || 0;
         this.stats.ipStats.set(packet.sourceIP, ipCount + 1);
-        
+
+        // Оновлення топ IP
+        this.updateTopIPs();
+
         this.packetCountLastSec++;
-        
+
         // Обмеження історії
-        if (this.packets.length > 1000) {
+        if (this.packets.length > 500) {
             this.packets.shift();
         }
     }
-    
-    calculatePacketRate() {
+
+    // ============================================
+    // РОЗРАХУНОК ШВИДКОСТІ
+    // ============================================
+    calculateRate() {
         const now = Date.now();
-        const timeDiff = (now - this.lastTimestamp) / 1000;
-        this.stats.packetRate = this.packetCountLastSec / timeDiff;
-        
+        const diff = (now - this.lastTimestamp) / 1000;
+        this.stats.packetRate = this.packetCountLastSec / diff;
         this.packetCountLastSec = 0;
         this.lastTimestamp = now;
     }
-    
+
+    // ============================================
+    // ОНОВЛЕННЯ ТОП IP
+    // ============================================
+    updateTopIPs() {
+        this.stats.topIPs = Array.from(this.stats.ipStats.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([ip, count]) => ({ ip, count }));
+    }
+
+    // ============================================
+    // ОТРИМАННЯ СТАТИСТИКИ
+    // ============================================
     getStats() {
         return {
             totalPackets: this.stats.totalPackets,
@@ -71,29 +93,34 @@ export class TrafficAnalyzer {
             packetRate: this.stats.packetRate,
             uniquePorts: this.stats.uniquePorts.size,
             protocolStats: { ...this.stats.protocolStats },
-            topIPs: Array.from(this.stats.ipStats.entries())
-                .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
+            topIPs: this.stats.topIPs,
+            avgPacketSize: this.stats.totalPackets > 0 ? 
+                this.stats.totalBytes / this.stats.totalPackets : 0
         };
     }
-    
-    getRecentPackets(count = 50) {
+
+    // ============================================
+    // ОТРИМАННЯ ОСТАННІХ ПАКЕТІВ
+    // ============================================
+    getRecentPackets(count = 20) {
         return this.packets.slice(-count);
     }
-    
-    getAveragePacketSize() {
-        if (this.stats.totalPackets === 0) return 0;
-        return this.stats.totalBytes / this.stats.totalPackets;
-    }
-    
+
+    // ============================================
+    // РОЗРАХУНОК АНОМАЛІЇ
+    // ============================================
     getAnomalyScore() {
-        const suspiciousRatio = this.stats.suspiciousPackets / Math.max(1, this.stats.totalPackets);
-        const blockedRatio = this.stats.blockedPackets / Math.max(1, this.stats.totalPackets);
-        const packetRateAnomaly = this.stats.packetRate > 100 ? 0.5 : 0;
-        
-        return suspiciousRatio * 0.4 + blockedRatio * 0.4 + packetRateAnomaly;
+        const total = this.stats.totalPackets || 1;
+        const blockedRatio = this.stats.blockedPackets / total;
+        const suspiciousRatio = this.stats.suspiciousPackets / total;
+        const rateAnomaly = Math.max(0, (this.stats.packetRate - 30) / 100);
+
+        return Math.min(1, blockedRatio * 0.4 + suspiciousRatio * 0.3 + rateAnomaly * 0.3);
     }
-    
+
+    // ============================================
+    // СКИДАННЯ
+    // ============================================
     reset() {
         this.packets = [];
         this.stats = {
@@ -105,7 +132,8 @@ export class TrafficAnalyzer {
             packetRate: 0,
             uniquePorts: new Set(),
             protocolStats: { TCP: 0, UDP: 0, ICMP: 0 },
-            ipStats: new Map()
+            ipStats: new Map(),
+            topIPs: []
         };
         this.packetCountLastSec = 0;
         this.lastTimestamp = Date.now();
