@@ -1,47 +1,436 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
-    <title>CyberSecurity AR - Кібербезпека в доповненій реальності</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberSecurity AR</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: monospace; }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff88;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            z-index: 10;
+        }
+        #info h1 { margin: 0; font-size: 20px; }
+        #info p { margin: 5px 0 0 0; font-size: 12px; opacity: 0.7; }
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+        }
+        #controls button {
+            background: rgba(0,0,0,0.8);
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        #controls button:hover {
+            background: #00ff88;
+            color: black;
+        }
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #00ff88;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #00ff88;
+            z-index: 10;
+            font-size: 12px;
+            min-width: 200px;
+        }
+        #stats div { padding: 2px 0; }
+        #alert {
+            position: absolute;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,0,0,0.9);
+            color: white;
+            padding: 10px 30px;
+            border-radius: 8px;
+            z-index: 20;
+            font-weight: bold;
+            display: none;
+        }
+        #threat {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .low { background: #00cc44; color: black; }
+        .medium { background: #ff8800; color: black; }
+        .high { background: #ff0000; color: white; animation: blink 0.5s infinite; }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
 </head>
 <body>
-    <!-- Заголовок -->
-    <div id="info">
-        <h1>🛡️ CyberSecurity AR</h1>
-        <p>Симуляція кібератак та захисту в AR</p>
-    </div>
 
-    <!-- Статистика -->
-    <div id="stats-panel" class="hidden">
-        <h3>📊 Аналіз трафіку</h3>
-        <div id="traffic-stats"></div>
-        <div id="threat-level"></div>
-    </div>
+<div id="info">
+    <h1>🛡️ CyberSecurity AR</h1>
+    <p>Симуляція кібератак та захисту</p>
+</div>
 
-    <!-- Сповіщення -->
-    <div id="alert" class="hidden"></div>
+<div id="stats">
+    <div>📦 Всього: <span id="total">0</span></div>
+    <div>🚫 Заблоковано: <span id="blocked">0</span></div>
+    <div>⚠️ Підозрілих: <span id="suspicious">0</span></div>
+    <div>✅ Дозволено: <span id="allowed">0</span></div>
+    <div>📊 Швидкість: <span id="rate">0</span> пак/с</div>
+    <div id="threat" class="low">🟢 LOW РІВЕНЬ</div>
+</div>
 
-    <!-- Кнопки управління -->
-    <div id="controls" class="hidden">
-        <button id="simulate-ddos">💣 DDoS Атака</button>
-        <button id="simulate-scan">🔍 Сканування портів</button>
-        <button id="reset-attacks">🔄 Скинути стан</button>
-        <button id="ar-toggle">📱 AR Режим</button>
-    </div>
+<div id="alert"></div>
 
-    <!-- Підключення бібліотек -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-                "@tensorflow/tfjs": "https://unpkg.com/@tensorflow/tfjs@4.15.0/dist/tf.min.js"
+<div id="controls">
+    <button onclick="startDDoS()">💣 DDoS</button>
+    <button onclick="startScan()">🔍 Сканування</button>
+    <button onclick="resetAll()">🔄 Скинути</button>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+}
+</script>
+
+<script type="module">
+// ============================================
+// ВЕСЬ КОД В ОДНОМУ ФАЙЛІ - ПРОСТО І РОБОЧО
+// ============================================
+
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --- ЗМІННІ ---
+let scene, camera, renderer, controls;
+let nodes = {};
+let particles = [];
+let stats = { total: 0, blocked: 0, suspicious: 0, allowed: 0, rate: 0 };
+let packetCount = 0;
+let lastTime = Date.now();
+
+// --- СТВОРЕННЯ СЦЕНИ ---
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a2a);
+
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(2, 1.5, 3);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.prepend(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.target.set(0, 0, 0);
+
+    // Світло
+    const light = new THREE.DirectionalLight(0xffffff, 1.5);
+    light.position.set(3, 5, 3);
+    light.castShadow = true;
+    scene.add(light);
+    scene.add(new THREE.AmbientLight(0x334466, 0.5));
+
+    // Підлога
+    const grid = new THREE.GridHelper(6, 20, 0x00ff88, 0x3366aa);
+    grid.position.y = -0.5;
+    scene.add(grid);
+
+    // --- СТВОРЕННЯ МЕРЕЖІ ---
+    createNetwork();
+
+    // --- АНІМАЦІЯ ---
+    animate();
+}
+
+// --- СТВОРЕННЯ ВУЗЛІВ ---
+function createNetwork() {
+    const colors = {
+        server: 0x00ff88,
+        computer: 0x4488ff,
+        router: 0xff8844,
+        firewall: 0xff4444
+    };
+
+    // Сервер
+    const server = createBox(0.4, 0.3, 0.4, colors.server, 0x004433);
+    server.position.set(-1.2, 0, -0.6);
+    scene.add(server);
+    nodes.server = server;
+
+    // Комп'ютери
+    const positions = [
+        [-0.5, -0.1, 0.3],
+        [0.3, -0.1, 0.5],
+        [-0.7, -0.1, -0.1],
+        [0.5, -0.1, -0.3]
+    ];
+    positions.forEach((pos, i) => {
+        const pc = createBox(0.25, 0.25, 0.2, colors.computer);
+        pc.position.set(pos[0], pos[1], pos[2]);
+        scene.add(pc);
+        nodes[`pc${i}`] = pc;
+    });
+
+    // Роутер
+    const router = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 32, 32),
+        new THREE.MeshStandardMaterial({ color: colors.router, emissive: 0x442200 })
+    );
+    router.position.set(0.7, 0.1, -0.8);
+    router.castShadow = true;
+    scene.add(router);
+    nodes.router = router;
+
+    // Firewall
+    const firewall = createBox(0.3, 0.3, 0.3, colors.firewall, 0x441111);
+    firewall.position.set(0.2, -0.1, 0.6);
+    scene.add(firewall);
+    nodes.firewall = firewall;
+
+    // З'єднання
+    const pairs = [
+        ['server', 'router'],
+        ['router', 'firewall'],
+        ['pc0', 'router'],
+        ['pc1', 'router'],
+        ['pc2', 'router'],
+        ['pc3', 'router']
+    ];
+    pairs.forEach(([a, b]) => {
+        if (!nodes[a] || !nodes[b]) return;
+        const pts = [nodes[a].position, nodes[b].position];
+        const geo = new THREE.BufferGeometry();
+        const pos = new Float32Array([
+            pts[0].x, pts[0].y, pts[0].z,
+            pts[1].x, pts[1].y, pts[1].z
+        ]);
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.3 }));
+        scene.add(line);
+    });
+}
+
+function createBox(w, h, d, color, emissive = 0x000000) {
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshStandardMaterial({ color, emissive, metalness: 0.5, roughness: 0.4 })
+    );
+    mesh.castShadow = true;
+    return mesh;
+}
+
+// --- СТВОРЕННЯ ПАКЕТА ---
+function createPacket(from, to, color, emissive, size = 0.05) {
+    if (!nodes[from] || !nodes[to]) return null;
+    
+    const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(size, 12, 12),
+        new THREE.MeshStandardMaterial({ color, emissive, emissiveIntensity: 0.5 })
+    );
+    mesh.position.copy(nodes[from].position);
+    mesh.userData = {
+        start: nodes[from].position.clone(),
+        end: nodes[to].position.clone(),
+        progress: 0,
+        speed: 0.02 + Math.random() * 0.02
+    };
+    scene.add(mesh);
+    particles.push(mesh);
+    
+    setTimeout(() => {
+        if (mesh.parent) scene.remove(mesh);
+        particles = particles.filter(p => p !== mesh);
+    }, 3000);
+    
+    return mesh;
+}
+
+// --- АТАКИ ---
+window.startDDoS = function() {
+    showAlert('⚠️ DDoS АТАКА!', '#ff0000');
+    highlightAll(0xff0000);
+    
+    for (let i = 0; i < 60; i++) {
+        setTimeout(() => {
+            const p = createPacket('router', 'server', 0xff0000, 0x660000);
+            if (p) {
+                stats.total++;
+                stats.blocked++;
+                updateStats();
             }
-        }
-    </script>
+        }, i * 50);
+    }
+    
+    setTimeout(() => {
+        showAlert('✅ DDoS відбито!', '#00ff88');
+        setTimeout(() => document.getElementById('alert').style.display = 'none', 2000);
+        updateThreat('high');
+    }, 3500);
+};
 
-    <script type="module" src="js/main.js"></script>
+window.startScan = function() {
+    showAlert('🔍 Сканування портів!', '#ff8800');
+    highlightNode('firewall', 0xff8800);
+    
+    for (let i = 0; i < 30; i++) {
+        setTimeout(() => {
+            const targets = ['pc0', 'pc1', 'pc2', 'pc3'];
+            const target = targets[Math.floor(Math.random() * targets.length)];
+            const p = createPacket('router', target, 0xff8800, 0x442200, 0.035);
+            if (p) {
+                stats.total++;
+                stats.suspicious++;
+                updateStats();
+            }
+        }, i * 40);
+    }
+    
+    setTimeout(() => {
+        showAlert('✅ Сканування завершено', '#00ff88');
+        setTimeout(() => document.getElementById('alert').style.display = 'none', 2000);
+        updateThreat('medium');
+    }, 2500);
+};
+
+window.resetAll = function() {
+    particles.forEach(p => { if (p.parent) scene.remove(p); });
+    particles = [];
+    stats = { total: 0, blocked: 0, suspicious: 0, allowed: 0, rate: 0 };
+    packetCount = 0;
+    updateStats();
+    updateThreat('low');
+    Object.values(nodes).forEach(node => {
+        if (node.material) {
+            if (node === nodes.server) node.material.color.setHex(0x00ff88);
+            else if (node === nodes.firewall) node.material.color.setHex(0xff4444);
+            else if (node === nodes.router) node.material.color.setHex(0xff8844);
+            else node.material.color.setHex(0x4488ff);
+        }
+    });
+    showAlert('🔄 Система скинута', '#00ff88');
+    setTimeout(() => document.getElementById('alert').style.display = 'none', 1500);
+};
+
+// --- ПІДСВІЧУВАННЯ ---
+function highlightAll(color) {
+    Object.values(nodes).forEach(node => {
+        if (node.material) {
+            const orig = node.material.color.getHex();
+            node.material.color.setHex(color);
+            setTimeout(() => node.material.color.setHex(orig), 2000);
+        }
+    });
+}
+
+function highlightNode(name, color) {
+    if (nodes[name] && nodes[name].material) {
+        const orig = nodes[name].material.color.getHex();
+        nodes[name].material.color.setHex(color);
+        setTimeout(() => nodes[name].material.color.setHex(orig), 1500);
+    }
+}
+
+// --- UI ---
+function updateStats() {
+    document.getElementById('total').textContent = stats.total;
+    document.getElementById('blocked').textContent = stats.blocked;
+    document.getElementById('suspicious').textContent = stats.suspicious;
+    document.getElementById('allowed').textContent = stats.allowed;
+    
+    const now = Date.now();
+    const diff = (now - lastTime) / 1000;
+    if (diff > 0) {
+        stats.rate = packetCount / diff;
+        packetCount = 0;
+        lastTime = now;
+    }
+    document.getElementById('rate').textContent = stats.rate.toFixed(1);
+}
+
+function updateThreat(level) {
+    const el = document.getElementById('threat');
+    el.className = level;
+    if (level === 'low') el.textContent = '🟢 LOW РІВЕНЬ';
+    else if (level === 'medium') el.textContent = '🟡 MEDIUM РІВЕНЬ';
+    else el.textContent = '🔴 HIGH РІВЕНЬ';
+}
+
+function showAlert(msg, color) {
+    const el = document.getElementById('alert');
+    el.textContent = msg;
+    el.style.background = color;
+    el.style.display = 'block';
+    clearTimeout(el._timeout);
+    el._timeout = setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// --- АНІМАЦІЯ ---
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    
+    // Рух пакетів
+    particles.forEach(p => {
+        if (p.userData.progress < 1) {
+            p.userData.progress += p.userData.speed;
+            const t = p.userData.progress;
+            p.position.lerpVectors(p.userData.start, p.userData.end, t);
+            const s = 1 + Math.sin(t * 20) * 0.2;
+            p.scale.set(s, s, s);
+        }
+    });
+    
+    // Авто-трафік (іноді)
+    if (Math.random() < 0.02 && stats.total < 200) {
+        const targets = ['pc0', 'pc1', 'pc2', 'pc3'];
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        const p = createPacket('router', target, 0x44ff88, 0x226644, 0.03);
+        if (p) {
+            stats.total++;
+            stats.allowed++;
+            packetCount++;
+            updateStats();
+        }
+    }
+    
+    renderer.render(scene, camera);
+}
+
+// --- ЗАПУСК ---
+init();
+console.log('🛡️ CyberSecurity AR готовий!');
+console.log('💡 Натисніть DDoS або Сканування для атаки');
+</script>
+
 </body>
 </html>
