@@ -5,297 +5,342 @@ import { Firewall } from './firewall.js';
 import { TrafficAnalyzer } from './trafficAnalyzer.js';
 import { MLIDS } from './ml_ids.js';
 
+// Глобальні змінні
 let scene, camera, renderer, controls;
 let networkManager, firewall, trafficAnalyzer, mlIDS;
-let arModeActive = false;
+let isARMode = false;
 let arSession = null;
+let isInitialized = false;
 
-// Ініціалізація сцени
-function init() {
+// ============================================
+// ІНІЦІАЛІЗАЦІЯ
+// ============================================
+async function init() {
+    console.log('🚀 Запуск CyberSecurity AR...');
+
+    // Створення сцени
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0a2a);
-    scene.fog = new THREE.FogExp2(0x0a0a2a, 0.008);
-    
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(2, 1.5, 3);
+
+    // Камера
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(3, 2, 4);
     camera.lookAt(0, 0, 0);
-    
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+
+    // Рендерер
+    renderer = new THREE.WebGLRenderer({ 
+        antialias: true, 
+        alpha: false 
+    });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
-    
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    renderer.xr.enabled = true;
+    document.body.prepend(renderer.domElement);
+
+    // Орбіт контрол (для 3D режиму)
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.autoRotate = false;
-    controls.enableZoom = true;
-    controls.enablePan = true;
+    controls.dampingFactor = 0.08;
     controls.target.set(0, 0, 0);
-    
-    const ambientLight = new THREE.AmbientLight(0x404060);
-    scene.add(ambientLight);
-    
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1);
-    mainLight.position.set(2, 3, 2);
-    mainLight.castShadow = true;
-    mainLight.receiveShadow = true;
-    mainLight.shadow.mapSize.width = 1024;
-    mainLight.shadow.mapSize.height = 1024;
-    scene.add(mainLight);
-    
-    const fillLight = new THREE.PointLight(0x4466ff, 0.3);
-    fillLight.position.set(0, -1, 0);
-    scene.add(fillLight);
-    
-    const backLight = new THREE.PointLight(0xff6644, 0.2);
-    backLight.position.set(0, 1, -2);
-    scene.add(backLight);
-    
-    const gridHelper = new THREE.GridHelper(8, 20, 0x00ff88, 0x3366aa);
-    gridHelper.position.y = -0.5;
-    gridHelper.material.transparent = true;
-    gridHelper.material.opacity = 0.5;
-    scene.add(gridHelper);
-    
-    const particleCount = 500;
-    const particlesGeometry = new THREE.BufferGeometry();
-    const particlesPositions = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount; i++) {
-        particlesPositions[i * 3] = (Math.random() - 0.5) * 20;
-        particlesPositions[i * 3 + 1] = (Math.random() - 0.5) * 5;
-        particlesPositions[i * 3 + 2] = (Math.random() - 0.5) * 15 - 5;
-    }
-    particlesGeometry.setAttribute('position', new THREE.BufferAttribute(particlesPositions, 3));
-    const particlesMaterial = new THREE.PointsMaterial({ color: 0x44aaff, size: 0.03, transparent: true, opacity: 0.5 });
-    const particles = new THREE.Points(particlesGeometry, particlesMaterial);
-    scene.add(particles);
-    
-    function animateParticles() {
-        particles.rotation.y += 0.001;
-        particles.rotation.x += 0.0005;
-        requestAnimationFrame(animateParticles);
-    }
-    animateParticles();
-    
+    controls.minDistance = 1.5;
+    controls.maxDistance = 10;
+
+    // Світло
+    setupLighting();
+
+    // Підлога
+    createFloor();
+
+    // Ініціалізація систем
     networkManager = new NetworkManager(scene);
     firewall = new Firewall();
     trafficAnalyzer = new TrafficAnalyzer();
     mlIDS = new MLIDS();
-    
-    showStatus('🔄 Навчання ML моделі детекції загроз...', '#ffaa00');
-    mlIDS.trainModel().then(() => {
-        console.log('✅ ML модель навчена');
-        showStatus('✅ ML система детекції вторгнень активована', '#00ff00');
-    });
-    
+
+    // Навчання ML
+    showStatus('🔄 Навчання ML моделі...', '#ff8800');
+    await mlIDS.trainModel();
+    showStatus('✅ ML система готова!', '#00ff88');
+
+    // Створення мережі
     networkManager.createNetworkNodes();
+
+    // Налаштування UI
     setupUI();
-    
-    setInterval(() => {
-        if (networkManager && trafficAnalyzer) {
-            generateNormalTraffic();
-        }
-    }, 2000);
-    
+
+    // Автоматичний трафік
+    setInterval(() => generateNormalTraffic(), 2500);
+
+    isInitialized = true;
     animate();
+    console.log('✅ Додаток готовий!');
 }
 
+// ============================================
+// ОСВІТЛЕННЯ
+// ============================================
+function setupLighting() {
+    const ambient = new THREE.AmbientLight(0x334466, 0.5);
+    scene.add(ambient);
+
+    const mainLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    mainLight.position.set(5, 8, 5);
+    mainLight.castShadow = true;
+    mainLight.shadow.mapSize.width = 1024;
+    mainLight.shadow.mapSize.height = 1024;
+    mainLight.shadow.radius = 4;
+    scene.add(mainLight);
+
+    const fillLight = new THREE.DirectionalLight(0x4488ff, 0.4);
+    fillLight.position.set(-3, 1, -2);
+    scene.add(fillLight);
+
+    const rimLight = new THREE.DirectionalLight(0xff6644, 0.3);
+    rimLight.position.set(0, -1, -4);
+    scene.add(rimLight);
+
+    const hemi = new THREE.HemisphereLight(0x4488ff, 0x002244, 0.4);
+    scene.add(hemi);
+}
+
+// ============================================
+// ПІДЛОГА
+// ============================================
+function createFloor() {
+    const gridHelper = new THREE.GridHelper(6, 20, 0x00ff88, 0x3366aa);
+    gridHelper.position.y = -0.5;
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.4;
+    scene.add(gridHelper);
+
+    // Прозора підлога для AR
+    const floorGeo = new THREE.PlaneGeometry(10, 10);
+    const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x0a0a2a,
+        transparent: true,
+        opacity: 0.3,
+        roughness: 0.8,
+        metalness: 0.2,
+        side: THREE.DoubleSide
+    });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.5;
+    floor.receiveShadow = true;
+    scene.add(floor);
+}
+
+// ============================================
+// UI НАЛАШТУВАННЯ
+// ============================================
 function setupUI() {
     document.getElementById('stats-panel').classList.remove('hidden');
+    document.getElementById('controls').classList.remove('hidden');
     document.getElementById('info').style.display = 'none';
-    
-    document.getElementById('simulate-ddos').addEventListener('click', () => simulateDDoSAttack());
-    document.getElementById('simulate-scan').addEventListener('click', () => simulatePortScan());
-    document.getElementById('reset-attacks').addEventListener('click', () => resetNetwork());
 
-    // ============================================
-    // 🆕 КНОПКА "AR Режим (WebXR)" - ВИПРАВЛЕНО!
-    // ============================================
-    const arButton = document.createElement('button');
-    arButton.textContent = '📱 AR Режим (WebXR)';
-    arButton.style.position = 'absolute';
-    arButton.style.bottom = '80px';
-    arButton.style.right = '20px';
-    arButton.style.background = 'rgba(0,0,0,0.85)';
-    arButton.style.color = '#00ff88';
-    arButton.style.border = '2px solid #00ff88';
-    arButton.style.padding = '10px 18px';
-    arButton.style.borderRadius = '8px';
-    arButton.style.cursor = 'pointer';
-    arButton.style.zIndex = '20';
-    arButton.style.fontFamily = 'monospace';
-    arButton.style.fontWeight = 'bold';
-    arButton.style.transition = 'all 0.3s';
-    
-    arButton.onmouseover = () => {
-        arButton.style.background = '#00ff88';
-        arButton.style.color = 'black';
-    };
-    arButton.onmouseout = () => {
-        arButton.style.background = 'rgba(0,0,0,0.85)';
-        arButton.style.color = '#00ff88';
-    };
-    
-    arButton.onclick = async () => {
-    // Перевіряємо WebXR
-    if (!navigator.xr) {
-        showStatus('❌ WebXR не підтримується. Використовуйте 3D-режим.', '#ff0000');
+    document.getElementById('simulate-ddos').addEventListener('click', simulateDDoSAttack);
+    document.getElementById('simulate-scan').addEventListener('click', simulatePortScan);
+    document.getElementById('reset-attacks').addEventListener('click', resetNetwork);
+    document.getElementById('ar-toggle').addEventListener('click', toggleAR);
+
+    // Адаптація до розміру вікна
+    window.addEventListener('resize', onResize);
+}
+
+// ============================================
+// АДАПТАЦІЯ РОЗМІРУ
+// ============================================
+function onResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+}
+
+// ============================================
+// AR РЕЖИМ
+// ============================================
+async function toggleAR() {
+    if (isARMode) {
+        await exitAR();
         return;
     }
 
-    showStatus('⏳ Перевірка AR...', '#ffaa00');
+    if (!navigator.xr) {
+        showStatus('❌ WebXR не підтримується цим браузером', '#ff0000');
+        return;
+    }
 
     try {
-        // Перевіряємо підтримку AR
         const supported = await navigator.xr.isSessionSupported('immersive-ar');
-        
         if (!supported) {
             showStatus('❌ AR не підтримується на цьому пристрої', '#ff0000');
             return;
         }
 
-        // ЗАПИТУЄМО КАМЕРУ
+        showStatus('📸 Запуск AR...', '#ff8800');
+
+        // Запит камери
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'environment' }
             });
-            stream.getTracks().forEach(track => track.stop());
-        } catch (camError) {
+            stream.getTracks().forEach(t => t.stop());
+        } catch (e) {
             showStatus('❌ Немає доступу до камери', '#ff0000');
             return;
         }
 
-        showStatus('🚀 Запуск AR...', '#00ff00');
-
-        // ЗАПУСКАЄМО AR З ОБРОБКОЮ ПОМИЛОК
         const session = await navigator.xr.requestSession('immersive-ar', {
             requiredFeatures: ['hit-test'],
             optionalFeatures: ['dom-overlay'],
             domOverlay: { root: document.body }
         });
 
-        renderer.xr.setSession(session);
-        
-        showStatus('✅ AR активовано! Шукайте об\'єкти.', '#00ff00');
+        arSession = session;
+        isARMode = true;
+        controls.enabled = false;
 
-        // ОНОВЛЮЄМО АНІМАЦІЮ
-        renderer.setAnimationLoop((timestamp, frame) => {
-            if (frame) {
-                // hit-test логіка
-            }
-            renderer.render(scene, camera);
+        renderer.xr.setSession(session);
+        const refSpace = await session.requestReferenceSpace('local');
+
+        document.getElementById('ar-toggle').textContent = '📱 Вийти з AR';
+        document.getElementById('ar-toggle').style.borderColor = '#ff4444';
+        document.getElementById('ar-toggle').style.color = '#ff4444';
+
+        showStatus('✅ AR активовано! Об\'єкти навколо вас.', '#00ff88');
+
+        session.addEventListener('end', () => {
+            exitAR();
         });
 
     } catch (error) {
-        console.error('Помилка AR:', error);
-        
-        // ОБРОБКА КОНКРЕТНИХ ПОМИЛОК
-        if (error.message.includes('session')) {
-            showStatus('❌ Не вдалося запустити AR-сесію. Спробуйте ще раз.', '#ff0000');
-        } else if (error.message.includes('permission')) {
-            showStatus('❌ Дозвольте доступ до камери в налаштуваннях.', '#ff0000');
-        } else {
-            showStatus('❌ Помилка AR: ' + error.message, '#ff0000');
-        }
-        
-        // ПОВЕРТАЄМОСЯ В 3D-РЕЖИМ
-        renderer.setAnimationLoop(null);
-        renderer.setAnimationLoop(animate);
+        console.error('AR помилка:', error);
+        showStatus('❌ Помилка AR: ' + error.message, '#ff0000');
+        isARMode = false;
+        controls.enabled = true;
     }
-};
+}
 
+async function exitAR() {
+    if (arSession) {
+        try {
+            await arSession.end();
+        } catch (e) {}
+        arSession = null;
+    }
+    isARMode = false;
+    controls.enabled = true;
+    renderer.xr.setSession(null);
+
+    document.getElementById('ar-toggle').textContent = '📱 AR Режим';
+    document.getElementById('ar-toggle').style.borderColor = '#8844ff';
+    document.getElementById('ar-toggle').style.color = '#aa88ff';
+
+    showStatus('🔄 Вихід з AR. 3D-режим.', '#ff8800');
+}
+
+// ============================================
+// ГЕНЕРАЦІЯ НОРМАЛЬНОГО ТРАФІКУ
+// ============================================
 function generateNormalTraffic() {
+    if (!networkManager || !trafficAnalyzer) return;
+
     const protocols = ['TCP', 'UDP'];
-    const ports = [80, 443, 22, 53, 8080];
-    
+    const ports = [80, 443, 22, 53, 8080, 3306];
+
     const packet = {
-        id: Math.random(),
+        id: Math.random().toString(36).substr(2, 9),
         sourceIP: `192.168.1.${Math.floor(Math.random() * 50) + 10}`,
         destIP: '192.168.1.100',
         type: 'normal',
-        size: Math.random() * 400 + 100,
+        size: Math.random() * 350 + 80,
         timestamp: Date.now(),
         protocol: protocols[Math.floor(Math.random() * protocols.length)],
         port: ports[Math.floor(Math.random() * ports.length)]
     };
-    
+
     const result = firewall.inspectPacket(packet);
     trafficAnalyzer.addPacket(packet, result);
-    
+
     if (result === 'allowed') {
         networkManager.animateNormalPacket(packet);
     }
-    
+
     updateStats();
 }
 
+// ============================================
+// СИМУЛЯЦІЯ DDoS АТАКИ
+// ============================================
 function simulateDDoSAttack() {
-    showStatus('⚠️ DDoS АТАКА ВИЯВЛЕНА! Блокування IP...', '#ff0000');
-    
-    const attackPackets = 120;
-    let blockedCount = 0;
-    
-    for (let i = 0; i < attackPackets; i++) {
+    if (!networkManager || !trafficAnalyzer) return;
+
+    showStatus('⚠️ DDoS АТАКА ВИЯВЛЕНА!', '#ff0000');
+    networkManager.highlightAllNodes(0xff0000);
+
+    const count = 100;
+    let blocked = 0;
+
+    for (let i = 0; i < count; i++) {
         setTimeout(() => {
             const packet = {
-                id: Math.random(),
-                sourceIP: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
+                id: Math.random().toString(36).substr(2, 9),
+                sourceIP: `10.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`,
                 destIP: '192.168.1.100',
                 type: 'ddos',
-                size: Math.random() * 800 + 600,
+                size: 500 + Math.random() * 500,
                 timestamp: Date.now(),
                 protocol: 'TCP',
                 port: Math.floor(Math.random() * 65535)
             };
-            
+
             const result = firewall.inspectPacket(packet);
             trafficAnalyzer.addPacket(packet, result);
-            if (result === 'blocked') blockedCount++;
+            if (result === 'blocked') blocked++;
+
             networkManager.animateAttackPacket(packet, 'ddos');
-            
+
             const stats = trafficAnalyzer.getStats();
             const threat = mlIDS.detectThreat({
-                packetRate: stats.packetRate + 150,
-                bytesPerSecond: stats.totalBytes / Math.max(1, stats.totalPackets) * (stats.packetRate + 150),
-                uniquePorts: stats.uniquePorts + 50,
+                packetRate: stats.packetRate + 200,
+                bytesPerSecond: (stats.totalBytes / Math.max(1, stats.totalPackets)) * (stats.packetRate + 200),
+                uniquePorts: stats.uniquePorts + 60,
                 packetSize: packet.size,
                 protocol: packet.protocol,
                 connectionDuration: 30
             });
             updateThreatDisplay(threat);
-        }, i * 40);
+
+        }, i * 45);
     }
-    
+
     setTimeout(() => {
-        const stats = trafficAnalyzer.getStats();
-        console.log(`DDoS атака завершена: заблоковано ${blockedCount}/${attackPackets} пакетів`);
         updateStats();
-        
-        const finalThreat = mlIDS.detectThreat({
-            packetRate: 200,
-            bytesPerSecond: 150000,
-            uniquePorts: 80,
-            packetSize: 700,
-            protocol: 'TCP',
-            connectionDuration: 30
-        });
-        updateThreatDisplay(finalThreat);
-        
-        if (finalThreat.level === 'High') {
-            showStatus('🔴 КРИТИЧНО! ML IDS підтверджує DDoS атаку - ВИСОКИЙ рівень загрози', '#ff0000');
-        }
-    }, 5000);
+        showStatus(`✅ DDoS атака відбита! Заблоковано ${blocked}/${count} пакетів.`, '#00ff88');
+    }, count * 45 + 1500);
 }
 
+// ============================================
+// СИМУЛЯЦІЯ СКАНУВАННЯ ПОРТІВ
+// ============================================
 function simulatePortScan() {
-    showStatus('🔍 ВИЯВЛЕНО СКАНУВАННЯ ПОРТІВ! Аналіз...', '#ffaa00');
-    
-    for (let port = 1; port <= 50; port++) {
+    if (!networkManager || !trafficAnalyzer) return;
+
+    showStatus('🔍 Виявлено сканування портів!', '#ff8800');
+    networkManager.highlightNode('firewall', 0xff8800);
+
+    const count = 50;
+
+    for (let port = 1; port <= count; port++) {
         setTimeout(() => {
             const packet = {
-                id: Math.random(),
+                id: Math.random().toString(36).substr(2, 9),
                 sourceIP: '10.0.0.50',
                 destIP: '192.168.1.100',
                 type: 'port_scan',
@@ -304,125 +349,135 @@ function simulatePortScan() {
                 protocol: 'TCP',
                 port: port
             };
-            
+
             const result = firewall.inspectPacket(packet);
             trafficAnalyzer.addPacket(packet, result);
             networkManager.animateAttackPacket(packet, 'scan');
-            
+
             if (result === 'suspicious') {
-                networkManager.highlightNode('firewall', 0xffaa00);
+                networkManager.highlightNode('firewall', 0xff8800);
             }
-        }, port * 30);
+
+            const threat = mlIDS.detectThreat({
+                packetRate: 70,
+                bytesPerSecond: 10000,
+                uniquePorts: port,
+                packetSize: 64,
+                protocol: 'TCP',
+                connectionDuration: 20
+            });
+            updateThreatDisplay(threat);
+
+        }, port * 35);
     }
-    
+
     setTimeout(() => {
-        const stats = trafficAnalyzer.getStats();
-        const threat = mlIDS.detectThreat({
-            packetRate: 80,
-            bytesPerSecond: 5000,
-            uniquePorts: 50,
-            packetSize: 64,
-            protocol: 'TCP',
-            connectionDuration: 30
-        });
-        updateThreatDisplay(threat);
         updateStats();
-    }, 2000);
+        showStatus('✅ Сканування портів завершено.', '#00ff88');
+    }, count * 35 + 1500);
 }
 
+// ============================================
+// СКИДАННЯ МЕРЕЖІ
+// ============================================
 function resetNetwork() {
     networkManager.resetNodes();
     trafficAnalyzer.reset();
     firewall.resetRules();
-    showStatus('🔄 Мережа та firewall скинуті до початкового стану', '#00ff00');
+    showStatus('🔄 Мережа та Firewall скинуті', '#00ff88');
     updateStats();
-    
+
     const threatDiv = document.getElementById('threat-level');
-    threatDiv.innerHTML = '';
-    threatDiv.className = '';
+    threatDiv.innerHTML = '🟢 LOW РІВЕНЬ ЗАГРОЗИ<br>🤖 Довіра: 95%';
+    threatDiv.className = 'threat-low';
 }
 
+// ============================================
+# ОНОВЛЕННЯ СТАТИСТИКИ
+// ============================================
 function updateStats() {
     const stats = trafficAnalyzer.getStats();
-    const statsDiv = document.getElementById('traffic-stats');
-    
-    statsDiv.innerHTML = `
+    const div = document.getElementById('traffic-stats');
+
+    div.innerHTML = `
         <div>📦 Всього пакетів: ${stats.totalPackets}</div>
         <div>🚫 Заблоковано: ${stats.blockedPackets}</div>
         <div>⚠️ Підозрілих: ${stats.suspiciousPackets}</div>
         <div>✅ Дозволено: ${stats.allowedPackets}</div>
-        <div>📊 Швидкість: ${stats.packetRate.toFixed(2)} пакетів/с</div>
-        <div>💾 Трафік: ${(stats.totalBytes / 1024).toFixed(2)} KB</div>
-        <div>🔌 Унікальних портів: ${stats.uniquePorts}</div>
-        <div style="font-size: 10px; margin-top: 8px;">🛡️ Firewall активний</div>
+        <div>📊 Швидкість: ${stats.packetRate.toFixed(1)} пакетів/с</div>
+        <div>💾 Трафік: ${(stats.totalBytes / 1024).toFixed(1)} KB</div>
+        <div>🔌 Портів: ${stats.uniquePorts}</div>
+        <div style="font-size:10px;color:#88ffbb;margin-top:6px;">🛡️ Firewall активний</div>
     `;
 }
 
+// ============================================
+# ОНОВЛЕННЯ РІВНЯ ЗАГРОЗИ
+// ============================================
 function updateThreatDisplay(threat) {
-    const threatDiv = document.getElementById('threat-level');
-    let threatClass = '';
-    let threatText = '';
+    const div = document.getElementById('threat-level');
+    let cls = '';
     let icon = '';
-    
-    switch(threat.level) {
+
+    switch (threat.level) {
         case 'High':
-            threatClass = 'threat-high';
-            threatText = 'ВИСОКИЙ РІВЕНЬ ЗАГРОЗИ';
+            cls = 'threat-high';
             icon = '🔴';
             networkManager.highlightAllNodes(0xff0000);
             break;
         case 'Medium':
-            threatClass = 'threat-medium';
-            threatText = 'СЕРЕДНІЙ РІВЕНЬ ЗАГРОЗИ';
+            cls = 'threat-medium';
             icon = '🟡';
-            networkManager.highlightNode('firewall', 0xffaa00);
+            networkManager.highlightNode('firewall', 0xff8800);
             break;
-        case 'Low':
-            threatClass = 'threat-low';
-            threatText = 'НИЗЬКИЙ РІВЕНЬ ЗАГРОЗИ';
+        default:
+            cls = 'threat-low';
             icon = '🟢';
-            break;
     }
-    
-    threatDiv.className = threatClass;
-    threatDiv.innerHTML = `${icon} ${threatText}<br>🤖 ML довіра: ${(threat.confidence * 100).toFixed(1)}%`;
+
+    div.className = cls;
+    div.innerHTML = `${icon} ${threat.level} РІВЕНЬ ЗАГРОЗИ<br>🤖 Довіра: ${(threat.confidence * 100).toFixed(0)}%`;
 }
 
+// ============================================
+# ПОКАЗ СПОВІЩЕННЯ
+// ============================================
 function showStatus(message, color) {
     const alertDiv = document.getElementById('alert');
     alertDiv.textContent = message;
-    alertDiv.style.background = color;
+    alertDiv.style.borderColor = color || '#00ff88';
+    alertDiv.style.background = 'rgba(0,0,0,0.92)';
     alertDiv.classList.remove('hidden');
-    
-    setTimeout(() => {
+
+    clearTimeout(alertDiv._timeout);
+    alertDiv._timeout = setTimeout(() => {
         alertDiv.classList.add('hidden');
-    }, 3500);
+    }, 4000);
 }
 
+// ============================================
+# АНІМАЦІЙНИЙ ЦИКЛ
+// ============================================
 function animate() {
     requestAnimationFrame(animate);
-    controls.update();
-    if (networkManager) networkManager.updateAnimations();
-    
-    if (Math.random() < 0.03) {
-        updateStats();
-        const stats = trafficAnalyzer.getStats();
-        if (stats.totalPackets > 10) {
-            const threat = mlIDS.detectThreat({
-                packetRate: stats.packetRate,
-                bytesPerSecond: (stats.totalBytes / Math.max(1, stats.totalPackets)) * stats.packetRate,
-                uniquePorts: stats.uniquePorts,
-                packetSize: 300,
-                protocol: 'TCP',
-                connectionDuration: 50
-            });
-            if (threat.level !== 'Low') {
-                updateThreatDisplay(threat);
-            }
-        }
+
+    if (!isARMode && controls) {
+        controls.update();
     }
-    
+
+    if (networkManager) {
+        networkManager.updateAnimations();
+    }
+
+    // Періодичне оновлення статистики
+    if (isInitialized && Math.random() < 0.02) {
+        updateStats();
+    }
+
     renderer.render(scene, camera);
 }
 
+// ============================================
+# ЗАПУСК
+// ============================================
 init();
