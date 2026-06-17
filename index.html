@@ -2,6 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>CyberSecurity AR</title>
     <style>
         body { margin: 0; overflow: hidden; background: #0a0a2a; font-family: monospace; }
@@ -11,84 +12,85 @@
             left: 20px;
             color: #00ff88;
             background: rgba(0,0,0,0.8);
-            padding: 15px 25px;
+            padding: 12px 20px;
             border-radius: 10px;
             border: 2px solid #00ff88;
             z-index: 10;
             pointer-events: none;
         }
-        #info h1 { margin: 0; font-size: 22px; }
-        #info p { margin: 5px 0 0 0; font-size: 13px; opacity: 0.7; }
+        #info h1 { margin: 0; font-size: 18px; }
+        #info p { margin: 4px 0 0 0; font-size: 11px; opacity: 0.7; }
         #stats {
             position: absolute;
             top: 20px;
             right: 20px;
             color: #00ff88;
             background: rgba(0,0,0,0.85);
-            padding: 15px 20px;
+            padding: 12px 16px;
             border-radius: 10px;
             border: 2px solid #00ff88;
             z-index: 10;
-            font-size: 13px;
-            min-width: 200px;
-            pointer-events: none;
+            font-size: 12px;
+            min-width: 180px;
         }
-        #stats div { padding: 4px 0; border-bottom: 1px solid rgba(0,255,136,0.1); }
+        #stats div { padding: 3px 0; border-bottom: 1px solid rgba(0,255,136,0.08); }
         #stats div:last-child { border-bottom: none; }
         #threat {
-            margin-top: 10px;
-            padding: 8px;
+            margin-top: 8px;
+            padding: 6px;
             border-radius: 5px;
             text-align: center;
             font-weight: bold;
+            font-size: 13px;
         }
         .low { background: #00cc44; color: #000; }
         .medium { background: #ff8800; color: #000; }
-        .high { background: #ff0000; color: #fff; animation: blink 0.6s infinite; }
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.5} }
+        .high { background: #ff0000; color: #fff; animation: blink 0.5s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
         #controls {
             position: absolute;
-            bottom: 30px;
+            bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 10;
             display: flex;
-            gap: 12px;
+            gap: 8px;
             flex-wrap: wrap;
             justify-content: center;
-            background: rgba(0,0,0,0.7);
-            padding: 12px 20px;
+            background: rgba(0,0,0,0.75);
+            padding: 10px 16px;
             border-radius: 12px;
             backdrop-filter: blur(5px);
-            border: 1px solid rgba(0,255,136,0.3);
+            border: 1px solid rgba(0,255,136,0.2);
         }
         #controls button {
             background: rgba(0,0,0,0.8);
             color: #00ff88;
             border: 2px solid #00ff88;
-            padding: 10px 22px;
+            padding: 8px 16px;
             border-radius: 8px;
             font-family: monospace;
             font-weight: bold;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 12px;
             transition: 0.2s;
         }
-        #controls button:hover {
-            background: #00ff88;
-            color: #000;
-            transform: scale(1.05);
+        #controls button:hover { background: #00ff88; color: #000; transform: scale(1.05); }
+        #controls button#arBtn {
+            border-color: #8844ff;
+            color: #aa88ff;
         }
+        #controls button#arBtn:hover { background: #8844ff; color: #fff; }
         #alert {
             position: absolute;
-            bottom: 100px;
+            bottom: 85px;
             left: 50%;
             transform: translateX(-50%);
-            padding: 12px 30px;
+            padding: 10px 25px;
             border-radius: 10px;
             z-index: 20;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 14px;
             display: none;
             background: rgba(0,0,0,0.9);
             color: #fff;
@@ -98,21 +100,28 @@
         }
         #loading {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: #0a0a2a;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 100;
             color: #00ff88;
-            font-size: 24px;
-            font-family: monospace;
+            font-size: 22px;
         }
         #loading span { animation: pulse 1s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        #hint {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.2);
+            font-size: 11px;
+            z-index: 5;
+            pointer-events: none;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -130,33 +139,39 @@
     <div>⚠️ Підозрілих: <span id="suspicious">0</span></div>
     <div>✅ Дозволено: <span id="allowed">0</span></div>
     <div>📊 Швидкість: <span id="rate">0.0</span> пак/с</div>
-    <div id="threat" class="low">🟢 LOW РІВЕНЬ ЗАГРОЗИ</div>
+    <div id="threat" class="low">🟢 LOW РІВЕНЬ</div>
 </div>
 
 <div id="alert"></div>
+<div id="hint">🖱️ Крути мишею • 📱 AR на Android Chrome</div>
 
 <div id="controls">
-    <button id="btnDDoS">💣 DDoS Атака</button>
+    <button id="btnDDoS">💣 DDoS</button>
     <button id="btnScan">🔍 Сканування</button>
     <button id="btnReset">🔄 Скинути</button>
+    <button id="arBtn">📱 AR Режим</button>
 </div>
 
+<!-- ===================== БІБЛІОТЕКИ ===================== -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js">
 </script>
 
 <script>
-// ============================================
-// ВЕСЬ КОД В ОДНОМУ ФАЙЛІ - ПРОСТО І РОБОЧО
-// ============================================
+// ============================================================
+// ВЕСЬ КОД В ОДНОМУ ФАЙЛІ - AR + 3D + КРУТИЛКА
+// ============================================================
 
 // --- ЗМІННІ ---
-let scene, camera, renderer;
+let scene, camera, renderer, controls;
 let nodes = {};
 let particles = [];
 let stats = { total: 0, blocked: 0, suspicious: 0, allowed: 0 };
 let packetCount = 0;
 let lastTime = Date.now();
-let isRunning = true;
+let isARMode = false;
+let arSession = null;
 
 // --- ІНІЦІАЛІЗАЦІЯ ---
 function init() {
@@ -176,7 +191,16 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
+    renderer.xr.enabled = true; // ВКЛЮЧАЄМО AR
     document.body.prepend(renderer.domElement);
+    
+    // ========== КРУТИЛКА (OrbitControls) ==========
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0, 0);
+    controls.minDistance = 1.5;
+    controls.maxDistance = 10;
     
     // Світло
     const ambient = new THREE.AmbientLight(0x334466, 0.6);
@@ -203,30 +227,26 @@ function init() {
     // Створення мережі
     createNetwork();
     
-    // Налаштування UI
-    setupUI();
+    // UI
+    document.getElementById('btnDDoS').addEventListener('click', startDDoS);
+    document.getElementById('btnScan').addEventListener('click', startScan);
+    document.getElementById('btnReset').addEventListener('click', resetAll);
+    document.getElementById('arBtn').addEventListener('click', toggleAR);
     
-    // Приховати завантаження
     document.getElementById('loading').style.display = 'none';
-    
-    // Запуск анімації
-    animate();
     
     // Авто-трафік
     setInterval(autoTraffic, 2500);
     
-    console.log('✅ Додаток готовий!');
+    animate();
+    console.log('✅ Додаток готовий! Крутіть мишею для огляду.');
 }
 
 // --- СТВОРЕННЯ МЕРЕЖІ ---
 function createNetwork() {
-    // Функція створення куба
     function createBox(w, h, d, color, emissive = 0x000000) {
         const mat = new THREE.MeshStandardMaterial({ 
-            color: color, 
-            emissive: emissive,
-            metalness: 0.5,
-            roughness: 0.4
+            color, emissive, metalness: 0.5, roughness: 0.4
         });
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
         mesh.castShadow = true;
@@ -254,12 +274,9 @@ function createNetwork() {
         nodes[`pc${i}`] = pc;
     });
     
-    // Роутер (сфера)
+    // Роутер
     const routerMat = new THREE.MeshStandardMaterial({ 
-        color: 0xff8844, 
-        emissive: 0x442200,
-        metalness: 0.7,
-        roughness: 0.3
+        color: 0xff8844, emissive: 0x442200, metalness: 0.7, roughness: 0.3
     });
     const router = new THREE.Mesh(new THREE.SphereGeometry(0.2, 32, 32), routerMat);
     router.position.set(0.7, 0.1, -0.8);
@@ -273,42 +290,31 @@ function createNetwork() {
     scene.add(firewall);
     nodes.firewall = firewall;
     
-    // З'єднання (лінії)
+    // З'єднання
     const connections = [
-        ['server', 'router'],
-        ['router', 'firewall'],
-        ['pc0', 'router'],
-        ['pc1', 'router'],
-        ['pc2', 'router'],
-        ['pc3', 'router']
+        ['server', 'router'], ['router', 'firewall'],
+        ['pc0', 'router'], ['pc1', 'router'],
+        ['pc2', 'router'], ['pc3', 'router']
     ];
     connections.forEach(([a, b]) => {
         if (!nodes[a] || !nodes[b]) return;
         const p1 = nodes[a].position;
         const p2 = nodes[b].position;
         const geo = new THREE.BufferGeometry();
-        const pos = new Float32Array([
-            p1.x, p1.y, p1.z,
-            p2.x, p2.y, p2.z
-        ]);
+        const pos = new Float32Array([p1.x, p1.y, p1.z, p2.x, p2.y, p2.z]);
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
         const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ 
-            color: 0x44ff88, 
-            transparent: true, 
-            opacity: 0.25 
+            color: 0x44ff88, transparent: true, opacity: 0.25 
         }));
         scene.add(line);
     });
 }
 
-// --- СТВОРЕННЯ ПАКЕТА ---
+// --- ПАКЕТ ---
 function createPacket(from, to, color, emissive, size = 0.05) {
     if (!nodes[from] || !nodes[to]) return null;
-    
     const mat = new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: emissive,
-        emissiveIntensity: 0.5
+        color, emissive, emissiveIntensity: 0.5
     });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 12, 12), mat);
     mesh.position.copy(nodes[from].position);
@@ -320,81 +326,54 @@ function createPacket(from, to, color, emissive, size = 0.05) {
     };
     scene.add(mesh);
     particles.push(mesh);
-    
     setTimeout(() => {
         if (mesh.parent) scene.remove(mesh);
         particles = particles.filter(p => p !== mesh);
     }, 3500);
-    
     return mesh;
 }
 
-// --- АВТОМАТИЧНИЙ ТРАФІК ---
+// --- АВТО-ТРАФІК ---
 function autoTraffic() {
     if (stats.total > 300) return;
     const targets = ['pc0', 'pc1', 'pc2', 'pc3'];
     const target = targets[Math.floor(Math.random() * targets.length)];
     const p = createPacket('router', target, 0x44ff88, 0x226644, 0.035);
-    if (p) {
-        stats.total++;
-        stats.allowed++;
-        packetCount++;
-        updateStats();
-    }
+    if (p) { stats.total++; stats.allowed++; packetCount++; updateStats(); }
 }
 
-// --- DDoS АТАКА ---
+// --- DDoS ---
 function startDDoS() {
-    if (!isRunning) return;
-    showAlert('⚠️ DDoS АТАКА ВИЯВЛЕНА!', '#ff0000');
+    showAlert('⚠️ DDoS АТАКА!', '#ff0000');
     highlightAll(0xff0000);
-    
     const count = 80;
     let blocked = 0;
-    
     for (let i = 0; i < count; i++) {
         setTimeout(() => {
             const p = createPacket('router', 'server', 0xff0000, 0x660000);
-            if (p) {
-                stats.total++;
-                stats.blocked++;
-                blocked++;
-                packetCount++;
-                updateStats();
-            }
+            if (p) { stats.total++; stats.blocked++; blocked++; packetCount++; updateStats(); }
         }, i * 45);
     }
-    
     setTimeout(() => {
-        showAlert(`✅ DDoS відбито! Заблоковано ${blocked}/${count} пакетів.`, '#00ff88');
+        showAlert(`✅ DDoS відбито! Заблоковано ${blocked}/${count}.`, '#00ff88');
         setTimeout(() => document.getElementById('alert').style.display = 'none', 2500);
         updateThreat('high');
     }, count * 45 + 1500);
 }
 
-// --- СКАНУВАННЯ ПОРТІВ ---
+// --- СКАНУВАННЯ ---
 function startScan() {
-    if (!isRunning) return;
-    showAlert('🔍 ВИЯВЛЕНО СКАНУВАННЯ ПОРТІВ!', '#ff8800');
+    showAlert('🔍 Сканування портів!', '#ff8800');
     highlightNode('firewall', 0xff8800);
-    
     const count = 40;
-    
     for (let i = 0; i < count; i++) {
         setTimeout(() => {
             const targets = ['pc0', 'pc1', 'pc2', 'pc3'];
             const target = targets[Math.floor(Math.random() * targets.length)];
             const p = createPacket('router', target, 0xff8800, 0x442200, 0.035);
-            if (p) {
-                stats.total++;
-                stats.suspicious++;
-                packetCount++;
-                updateStats();
-                if (i % 5 === 0) highlightNode('firewall', 0xff8800);
-            }
+            if (p) { stats.total++; stats.suspicious++; packetCount++; updateStats(); }
         }, i * 35);
     }
-    
     setTimeout(() => {
         showAlert('✅ Сканування завершено', '#00ff88');
         setTimeout(() => document.getElementById('alert').style.display = 'none', 2000);
@@ -410,8 +389,6 @@ function resetAll() {
     packetCount = 0;
     updateStats();
     updateThreat('low');
-    
-    // Відновлення кольорів
     Object.values(nodes).forEach(node => {
         if (node.material && node.material.color) {
             if (node === nodes.server) node.material.color.setHex(0x00ff88);
@@ -420,8 +397,7 @@ function resetAll() {
             else node.material.color.setHex(0x4488ff);
         }
     });
-    
-    showAlert('🔄 Мережа та Firewall скинуті', '#00ff88');
+    showAlert('🔄 Система скинута', '#00ff88');
     setTimeout(() => document.getElementById('alert').style.display = 'none', 2000);
 }
 
@@ -431,65 +407,127 @@ function highlightAll(color) {
         if (node.material && node.material.color) {
             const orig = node.material.color.getHex();
             node.material.color.setHex(color);
-            setTimeout(() => {
-                if (node.material) node.material.color.setHex(orig);
-            }, 2000);
+            setTimeout(() => { if (node.material) node.material.color.setHex(orig); }, 2000);
         }
     });
 }
-
 function highlightNode(name, color) {
     const node = nodes[name];
     if (node && node.material && node.material.color) {
         const orig = node.material.color.getHex();
         node.material.color.setHex(color);
-        setTimeout(() => {
-            if (node.material) node.material.color.setHex(orig);
-        }, 1500);
+        setTimeout(() => { if (node.material) node.material.color.setHex(orig); }, 1500);
     }
 }
 
-// --- UI ---
-function setupUI() {
-    document.getElementById('btnDDoS').addEventListener('click', startDDoS);
-    document.getElementById('btnScan').addEventListener('click', startScan);
-    document.getElementById('btnReset').addEventListener('click', resetAll);
-}
-
+// --- СТАТИСТИКА ---
 function updateStats() {
     document.getElementById('total').textContent = stats.total;
     document.getElementById('blocked').textContent = stats.blocked;
     document.getElementById('suspicious').textContent = stats.suspicious;
     document.getElementById('allowed').textContent = stats.allowed;
-    
     const now = Date.now();
     const diff = (now - lastTime) / 1000;
     if (diff >= 1) {
-        const rate = packetCount / diff;
-        document.getElementById('rate').textContent = rate.toFixed(1);
+        document.getElementById('rate').textContent = (packetCount / diff).toFixed(1);
         packetCount = 0;
         lastTime = now;
     }
 }
-
 function updateThreat(level) {
     const el = document.getElementById('threat');
     el.className = level;
-    if (level === 'low') el.textContent = '🟢 LOW РІВЕНЬ ЗАГРОЗИ';
-    else if (level === 'medium') el.textContent = '🟡 MEDIUM РІВЕНЬ ЗАГРОЗИ';
-    else el.textContent = '🔴 HIGH РІВЕНЬ ЗАГРОЗИ';
+    el.textContent = level === 'low' ? '🟢 LOW РІВЕНЬ' : 
+                     level === 'medium' ? '🟡 MEDIUM РІВЕНЬ' : '🔴 HIGH РІВЕНЬ';
 }
-
 function showAlert(msg, color) {
     const el = document.getElementById('alert');
     el.textContent = msg;
     el.style.background = color;
-    el.style.borderColor = color;
     el.style.display = 'block';
     clearTimeout(el._timeout);
-    el._timeout = setTimeout(() => {
-        el.style.display = 'none';
-    }, 3000);
+    el._timeout = setTimeout(() => el.style.display = 'none', 3000);
+}
+
+// ============================================================
+// ===================== AR РЕЖИМ =============================
+// ============================================================
+async function toggleAR() {
+    if (isARMode) {
+        await exitAR();
+        return;
+    }
+    
+    if (!navigator.xr) {
+        showAlert('❌ WebXR не підтримується', '#ff0000');
+        return;
+    }
+    
+    try {
+        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+        if (!supported) {
+            showAlert('❌ AR не підтримується на цьому пристрої', '#ff0000');
+            return;
+        }
+        
+        showAlert('📸 Запит на камеру...', '#ff8800');
+        
+        // Запит камери
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' }
+            });
+            stream.getTracks().forEach(t => t.stop());
+        } catch (e) {
+            showAlert('❌ Немає доступу до камери', '#ff0000');
+            return;
+        }
+        
+        const session = await navigator.xr.requestSession('immersive-ar', {
+            requiredFeatures: ['hit-test'],
+            optionalFeatures: ['dom-overlay'],
+            domOverlay: { root: document.body }
+        });
+        
+        arSession = session;
+        isARMode = true;
+        controls.enabled = false;
+        
+        renderer.xr.setSession(session);
+        await session.requestReferenceSpace('local');
+        
+        document.getElementById('arBtn').textContent = '📱 Вийти з AR';
+        document.getElementById('arBtn').style.borderColor = '#ff4444';
+        document.getElementById('arBtn').style.color = '#ff4444';
+        
+        showAlert('✅ AR активовано! Наведіть камеру на підлогу.', '#00ff88');
+        
+        session.addEventListener('end', () => {
+            exitAR();
+        });
+        
+    } catch (error) {
+        console.error('AR помилка:', error);
+        showAlert('❌ Помилка AR: ' + error.message, '#ff0000');
+        isARMode = false;
+        controls.enabled = true;
+    }
+}
+
+async function exitAR() {
+    if (arSession) {
+        try { await arSession.end(); } catch(e) {}
+        arSession = null;
+    }
+    isARMode = false;
+    controls.enabled = true;
+    renderer.xr.setSession(null);
+    
+    document.getElementById('arBtn').textContent = '📱 AR Режим';
+    document.getElementById('arBtn').style.borderColor = '#8844ff';
+    document.getElementById('arBtn').style.color = '#aa88ff';
+    
+    showAlert('🔄 Вихід з AR. 3D-режим.', '#ff8800');
 }
 
 // --- АНІМАЦІЯ ---
@@ -497,7 +535,12 @@ function animate() {
     if (!renderer) return;
     requestAnimationFrame(animate);
     
-    // Оновлення позицій пакетів
+    // КРУТИЛКА працює тільки в 3D-режимі
+    if (!isARMode && controls) {
+        controls.update();
+    }
+    
+    // Рух пакетів
     particles.forEach(p => {
         if (p.userData.progress < 1) {
             p.userData.progress += p.userData.speed;
@@ -508,8 +551,7 @@ function animate() {
         }
     });
     
-    // Оновлення статистики
-    if (Math.random() < 0.03) updateStats();
+    if (Math.random() < 0.02) updateStats();
     
     renderer.render(scene, camera);
 }
@@ -527,7 +569,8 @@ window.addEventListener('resize', () => {
     renderer.setSize(w, h);
 });
 
-console.log('💡 Натисніть кнопки для симуляції атак!');
+console.log('💡 Крутіть мишею для 3D-огляду');
+console.log('📱 Натисніть "AR Режим" на телефоні з Chrome');
 </script>
 </body>
 </html>
