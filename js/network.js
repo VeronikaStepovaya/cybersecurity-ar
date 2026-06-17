@@ -5,307 +5,443 @@ export class NetworkManager {
         this.scene = scene;
         this.nodes = {};
         this.particles = [];
-        this.animations = [];
-        this.lines = [];
+        this.connections = [];
+        this.nodePositions = {};
     }
-    
+
+    // ============================================
+    // СТВОРЕННЯ ВУЗЛІВ МЕРЕЖІ
+    // ============================================
     createNetworkNodes() {
-        // Створення сервера
-        const serverGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-        const serverMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff88, emissive: 0x006644, metalness: 0.7, roughness: 0.3 });
-        const server = new THREE.Mesh(serverGeometry, serverMaterial);
-        server.position.set(-1.2, 0, -0.8);
-        server.castShadow = true;
-        server.receiveShadow = true;
-        server.userData = { type: 'server', name: 'Головний сервер', health: 100 };
-        this.scene.add(server);
+        // Сервер
+        const server = this.createServer();
         this.nodes['server'] = server;
-        
-        // Додаємо антену до сервера
-        const antennaGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.3, 6);
-        const antennaMat = new THREE.MeshStandardMaterial({ color: 0xffaa44 });
-        const antenna = new THREE.Mesh(antennaGeo, antennaMat);
-        antenna.position.y = 0.3;
-        server.add(antenna);
-        
-        // Створення комп'ютерів
-        const pcMaterial = new THREE.MeshStandardMaterial({ color: 0x44aaff, metalness: 0.5, roughness: 0.4 });
-        
-        const computerPositions = [
-            { x: -0.5, y: -0.2, z: -0.5, name: 'Клієнт 1' },
-            { x: 0.3, y: -0.2, z: -0.7, name: 'Клієнт 2' },
-            { x: -0.8, y: -0.2, z: 0.2, name: 'Клієнт 3' },
-            { x: 0.6, y: -0.2, z: -0.2, name: 'Клієнт 4' }
-        ];
-        
-        computerPositions.forEach((pos, i) => {
-            const pcGeometry = new THREE.BoxGeometry(0.35, 0.35, 0.25);
-            const pc = new THREE.Mesh(pcGeometry, pcMaterial);
-            pc.position.set(pos.x, pos.y, pos.z);
-            pc.castShadow = true;
-            pc.userData = { type: 'computer', name: pos.name };
-            this.scene.add(pc);
+
+        // Комп'ютери
+        const computers = this.createComputers();
+        computers.forEach((pc, i) => {
             this.nodes[`computer${i}`] = pc;
-            
-            // Екран комп'ютера
-            const screenGeo = new THREE.BoxGeometry(0.25, 0.2, 0.05);
-            const screenMat = new THREE.MeshStandardMaterial({ color: 0x88ccff, emissive: 0x004466 });
-            const screen = new THREE.Mesh(screenGeo, screenMat);
-            screen.position.z = 0.13;
-            pc.add(screen);
         });
-        
-        // Створення маршрутизатора
-        const routerGeometry = new THREE.SphereGeometry(0.22, 32, 32);
-        const routerMaterial = new THREE.MeshStandardMaterial({ color: 0xff8844, emissive: 0x442200, metalness: 0.8 });
-        const router = new THREE.Mesh(routerGeometry, routerMaterial);
-        router.position.set(0.7, 0.1, -1.0);
-        router.castShadow = true;
-        router.userData = { type: 'router', name: 'Маршрутизатор' };
-        this.scene.add(router);
+
+        // Роутер
+        const router = this.createRouter();
         this.nodes['router'] = router;
-        
-        // Додаємо світлові індикатори до роутера
-        const leds = [-0.15, 0, 0.15];
-        leds.forEach(x => {
-            const ledGeo = new THREE.SphereGeometry(0.04, 8, 8);
-            const ledMat = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00 });
-            const led = new THREE.Mesh(ledGeo, ledMat);
-            led.position.set(x, 0.15, 0.22);
-            router.add(led);
-        });
-        
-        // Створення Firewall
-        const firewallGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.4);
-        const firewallMaterial = new THREE.MeshStandardMaterial({ color: 0xff4444, emissive: 0x441111, metalness: 0.6 });
-        const firewallNode = new THREE.Mesh(firewallGeometry, firewallMaterial);
-        firewallNode.position.set(0.2, -0.1, 0.5);
-        firewallNode.castShadow = true;
-        firewallNode.userData = { type: 'firewall', name: 'Firewall' };
-        this.scene.add(firewallNode);
-        this.nodes['firewall'] = firewallNode;
-        
-        // Додаємо щит до firewall
-        const shieldGeo = new THREE.TorusGeometry(0.25, 0.05, 16, 32);
-        const shieldMat = new THREE.MeshStandardMaterial({ color: 0xff6666, emissive: 0x441111 });
-        const shield = new THREE.Mesh(shieldGeo, shieldMat);
-        shield.rotation.x = Math.PI / 2;
-        firewallNode.add(shield);
-        
-        // Створення з'єднань
-        this.createConnectionLines();
-        
-        // Додавання текстових міток
-        this.addLabels();
+
+        // Firewall
+        const firewall = this.createFirewall();
+        this.nodes['firewall'] = firewall;
+
+        // З'єднання
+        this.createConnections();
+
+        // Додаємо анімацію для роутера
+        this.animateRouter(router);
     }
-    
-    createConnectionLines() {
-        const connections = [
-            [this.nodes['server'], this.nodes['router']],
-            [this.nodes['router'], this.nodes['firewall']],
-            [this.nodes['computer0'], this.nodes['router']],
-            [this.nodes['computer1'], this.nodes['router']],
-            [this.nodes['computer2'], this.nodes['router']],
-            [this.nodes['computer3'], this.nodes['router']]
+
+    // ============================================
+    // СЕРВЕР
+    // ============================================
+    createServer() {
+        const group = new THREE.Group();
+
+        // Корпус
+        const geo = new THREE.BoxGeometry(0.5, 0.35, 0.5);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0x00ff88,
+            emissive: 0x004433,
+            metalness: 0.6,
+            roughness: 0.3
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        group.add(mesh);
+
+        // Індикатори
+        const ledMat = new THREE.MeshStandardMaterial({
+            color: 0x00ff44,
+            emissive: 0x00ff44
+        });
+        for (let i = -0.15; i <= 0.15; i += 0.15) {
+            const led = new THREE.Mesh(
+                new THREE.SphereGeometry(0.04, 8, 8),
+                ledMat
+            );
+            led.position.set(i, 0.2, 0.25);
+            group.add(led);
+        }
+
+        // Антена
+        const antGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.2, 6);
+        const antMat = new THREE.MeshStandardMaterial({ color: 0x88ddff });
+        const ant = new THREE.Mesh(antGeo, antMat);
+        ant.position.set(0, 0.25, 0);
+        group.add(ant);
+
+        group.position.set(-1.2, 0, -0.6);
+        group.userData = { type: 'server', name: 'Сервер' };
+        this.scene.add(group);
+        this.nodePositions['server'] = group.position.clone();
+
+        return group;
+    }
+
+    // ============================================
+    // КОМП'ЮТЕРИ
+    // ============================================
+    createComputers() {
+        const positions = [
+            { x: -0.5, y: -0.1, z: 0.3 },
+            { x: 0.3, y: -0.1, z: 0.5 },
+            { x: -0.7, y: -0.1, z: -0.1 },
+            { x: 0.5, y: -0.1, z: -0.3 }
         ];
-        
-        connections.forEach(([node1, node2]) => {
-            if (node1 && node2) {
-                const points = [node1.position.clone(), node2.position.clone()];
-                const lineGeometry = new THREE.BufferGeometry();
-                const vertices = new Float32Array([
-                    points[0].x, points[0].y, points[0].z,
-                    points[1].x, points[1].y, points[1].z
-                ]);
-                lineGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-                const lineMaterial = new THREE.LineBasicMaterial({ color: 0x44ff88 });
-                const line = new THREE.Line(lineGeometry, lineMaterial);
-                this.scene.add(line);
-                this.lines.push(line);
-            }
+
+        return positions.map((pos, i) => {
+            const group = new THREE.Group();
+
+            // Корпус
+            const geo = new THREE.BoxGeometry(0.3, 0.3, 0.2);
+            const mat = new THREE.MeshStandardMaterial({
+                color: 0x4488ff,
+                metalness: 0.4,
+                roughness: 0.5
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            group.add(mesh);
+
+            // Екран
+            const screenMat = new THREE.MeshStandardMaterial({
+                color: 0x88ddff,
+                emissive: 0x224466,
+                emissiveIntensity: 0.3
+            });
+            const screen = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.22, 0.18),
+                screenMat
+            );
+            screen.position.set(0, 0, 0.11);
+            group.add(screen);
+
+            group.position.set(pos.x, pos.y, pos.z);
+            group.userData = { type: 'computer', name: `ПК ${i + 1}` };
+            this.scene.add(group);
+            this.nodePositions[`computer${i}`] = group.position.clone();
+
+            return group;
         });
     }
-    
-    addLabels() {
-        const labelDiv = document.createElement('div');
-        labelDiv.style.position = 'absolute';
-        labelDiv.style.pointerEvents = 'none';
-        labelDiv.style.fontFamily = 'monospace';
-        labelDiv.style.fontSize = '12px';
-        labelDiv.style.fontWeight = 'bold';
-        labelDiv.style.textShadow = '1px 1px 0px black';
-        document.body.appendChild(labelDiv);
-        
-        // Просте рішення - створюємо CSS2D мітки через DOM
-        Object.entries(this.nodes).forEach(([key, node]) => {
-            const label = document.createElement('div');
-            label.textContent = node.userData.name || key;
-            label.style.color = '#00ff88';
-            label.style.background = 'rgba(0,0,0,0.7)';
-            label.style.padding = '2px 6px';
-            label.style.borderRadius = '4px';
-            label.style.border = '1px solid #00ff88';
-            label.style.fontSize = '10px';
-            label.style.fontFamily = 'monospace';
-            label.style.whiteSpace = 'nowrap';
-            label.style.position = 'absolute';
-            label.style.pointerEvents = 'none';
-            document.body.appendChild(label);
-            
-            // Зберігаємо для оновлення позиції
-            node.userData.label = label;
+
+    // ============================================
+    // РОУТЕР
+    // ============================================
+    createRouter() {
+        const group = new THREE.Group();
+
+        // Корпус
+        const geo = new THREE.SphereGeometry(0.2, 32, 32);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xff8844,
+            emissive: 0x442200,
+            metalness: 0.7,
+            roughness: 0.3
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        group.add(mesh);
+
+        // Антени
+        for (let i = -0.15; i <= 0.15; i += 0.15) {
+            const ant = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.015, 0.015, 0.12, 6),
+                new THREE.MeshStandardMaterial({ color: 0xdddddd })
+            );
+            ant.position.set(i, 0.2, 0);
+            ant.rotation.z = i * 0.3;
+            group.add(ant);
+        }
+
+        // Світлодіоди
+        for (let i = -0.1; i <= 0.1; i += 0.1) {
+            const led = new THREE.Mesh(
+                new THREE.SphereGeometry(0.025, 8, 8),
+                new THREE.MeshStandardMaterial({
+                    color: 0x00ff44,
+                    emissive: 0x00ff44,
+                    emissiveIntensity: 0.5
+                })
+            );
+            led.position.set(i, -0.12, 0.18);
+            group.add(led);
+        }
+
+        group.position.set(0.7, 0.1, -0.8);
+        group.userData = { type: 'router', name: 'Роутер' };
+        this.scene.add(group);
+        this.nodePositions['router'] = group.position.clone();
+
+        return group;
+    }
+
+    // ============================================
+    // FIREWALL
+    // ============================================
+    createFirewall() {
+        const group = new THREE.Group();
+
+        // Корпус
+        const geo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+        const mat = new THREE.MeshStandardMaterial({
+            color: 0xff4444,
+            emissive: 0x441111,
+            metalness: 0.5,
+            roughness: 0.4
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.castShadow = true;
+        group.add(mesh);
+
+        // Щит
+        const shieldMat = new THREE.MeshStandardMaterial({
+            color: 0xff6666,
+            emissive: 0x441111,
+            transparent: true,
+            opacity: 0.5,
+            side: THREE.DoubleSide
+        });
+        const shield = new THREE.Mesh(
+            new THREE.RingGeometry(0.12, 0.22, 32),
+            shieldMat
+        );
+        shield.rotation.x = Math.PI / 2;
+        shield.position.z = 0.17;
+        group.add(shield);
+
+        // Текст F
+        const textMat = new THREE.MeshStandardMaterial({
+            color: 0xff8888,
+            emissive: 0x441111
+        });
+        // Використовуємо простий куб як імітацію тексту
+        const textBlock = new THREE.Mesh(
+            new THREE.BoxGeometry(0.08, 0.12, 0.02),
+            textMat
+        );
+        textBlock.position.set(0, 0, 0.18);
+        group.add(textBlock);
+
+        group.position.set(0.2, -0.1, 0.6);
+        group.userData = { type: 'firewall', name: 'Firewall' };
+        this.scene.add(group);
+        this.nodePositions['firewall'] = group.position.clone();
+
+        return group;
+    }
+
+    // ============================================
+    // АНІМАЦІЯ РОУТЕРА
+    // ============================================
+    animateRouter(router) {
+        let angle = 0;
+        setInterval(() => {
+            angle += 0.05;
+            const leds = router.children.filter(c => c.geometry?.type === 'SphereGeometry');
+            leds.forEach((led, i) => {
+                const brightness = (Math.sin(angle + i * 1.5) + 1) / 2;
+                led.material.emissiveIntensity = 0.2 + brightness * 0.8;
+            });
+        }, 100);
+    }
+
+    // ============================================
+    // З'ЄДНАННЯ
+    // ============================================
+    createConnections() {
+        const pairs = [
+            ['server', 'router'],
+            ['router', 'firewall'],
+            ['computer0', 'router'],
+            ['computer1', 'router'],
+            ['computer2', 'router'],
+            ['computer3', 'router']
+        ];
+
+        pairs.forEach(([from, to]) => {
+            const fromNode = this.nodes[from];
+            const toNode = this.nodes[to];
+            if (!fromNode || !toNode) return;
+
+            const points = [
+                fromNode.position.clone(),
+                toNode.position.clone()
+            ];
+
+            const geo = new THREE.BufferGeometry();
+            const positions = new Float32Array([
+                points[0].x, points[0].y, points[0].z,
+                points[1].x, points[1].y, points[1].z
+            ]);
+            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+            const mat = new THREE.LineBasicMaterial({
+                color: 0x44ff88,
+                transparent: true,
+                opacity: 0.3
+            });
+            const line = new THREE.Line(geo, mat);
+            this.scene.add(line);
+            this.connections.push(line);
         });
     }
-    
-    updateLabels(camera, renderer) {
-        // Оновлення позицій CSS2D міток
-        Object.values(this.nodes).forEach(node => {
-            if (node.userData.label) {
-                const vector = node.position.clone();
-                vector.project(camera);
-                const x = (vector.x * 0.5 + 0.5) * renderer.domElement.clientWidth;
-                const y = (-vector.y * 0.5 + 0.5) * renderer.domElement.clientHeight;
-                node.userData.label.style.transform = `translate(-50%, -100%)`;
-                node.userData.label.style.left = `${x}px`;
-                node.userData.label.style.top = `${y - 20}px`;
-            }
-        });
-    }
-    
+
+    // ============================================
+    // АНІМАЦІЯ ПАКЕТА (АТАКА)
+    // ============================================
     animateAttackPacket(packet, type) {
-        const startNode = this.nodes['router'];
-        let endNode = this.nodes['server'];
-        
+        const from = this.nodes['router'];
+        let to = this.nodes['server'];
+
         if (type === 'scan') {
-            const computers = Object.values(this.nodes).filter(n => n.userData.type === 'computer');
-            endNode = computers[Math.floor(Math.random() * computers.length)];
+            const comps = ['computer0', 'computer1', 'computer2', 'computer3'];
+            to = this.nodes[comps[Math.floor(Math.random() * comps.length)]];
         }
-        
-        if (!startNode || !endNode) return;
-        
-        const particleGeometry = new THREE.SphereGeometry(0.06, 16, 16);
-        let color = 0xff3333;
-        let emissive = 0x441111;
-        
-        if (type === 'ddos') {
-            color = 0xff0000;
-            emissive = 0x660000;
-        } else if (type === 'scan') {
-            color = 0xff8800;
-            emissive = 0x442200;
-        }
-        
-        const material = new THREE.MeshStandardMaterial({ color: color, emissive: emissive });
-        const particle = new THREE.Mesh(particleGeometry, material);
-        
+
+        if (!from || !to) return;
+
+        const color = type === 'ddos' ? 0xff0000 : 0xff8800;
+        const emissive = type === 'ddos' ? 0x660000 : 0x442200;
+
+        const particle = new THREE.Mesh(
+            new THREE.SphereGeometry(0.045, 16, 16),
+            new THREE.MeshStandardMaterial({
+                color: color,
+                emissive: emissive,
+                emissiveIntensity: 0.5
+            })
+        );
+
         particle.userData = {
-            start: startNode.position.clone(),
-            end: endNode.position.clone(),
+            start: from.position.clone(),
+            end: to.position.clone(),
             progress: 0,
-            speed: 0.03 + Math.random() * 0.02,
+            speed: 0.02 + Math.random() * 0.02,
             type: type
         };
-        
+
         particle.position.copy(particle.userData.start);
         this.scene.add(particle);
-        this.animations.push(particle);
-        
+        this.particles.push(particle);
+
         setTimeout(() => {
-            if (particle.parent) this.scene.remove(particle);
-            this.animations = this.animations.filter(p => p !== particle);
+            if (particle.parent) {
+                this.scene.remove(particle);
+            }
+            this.particles = this.particles.filter(p => p !== particle);
         }, 3500);
     }
-    
+
+    // ============================================
+    // АНІМАЦІЯ ПАКЕТА (НОРМАЛЬНИЙ)
+    // ============================================
     animateNormalPacket(packet) {
-        const computers = Object.values(this.nodes).filter(n => n.userData.type === 'computer');
-        const randomComputer = computers[Math.floor(Math.random() * computers.length)];
-        const router = this.nodes['router'];
-        
-        if (!randomComputer || !router) return;
-        
-        const particleGeometry = new THREE.SphereGeometry(0.04, 8, 8);
-        const material = new THREE.MeshStandardMaterial({ color: 0x44ff88, emissive: 0x226644 });
-        const particle = new THREE.Mesh(particleGeometry, material);
-        
+        const comps = ['computer0', 'computer1', 'computer2', 'computer3'];
+        const from = this.nodes['router'];
+        const to = this.nodes[comps[Math.floor(Math.random() * comps.length)]];
+
+        if (!from || !to) return;
+
+        const particle = new THREE.Mesh(
+            new THREE.SphereGeometry(0.03, 8, 8),
+            new THREE.MeshStandardMaterial({
+                color: 0x44ff88,
+                emissive: 0x226644,
+                emissiveIntensity: 0.3
+            })
+        );
+
         particle.userData = {
-            start: router.position.clone(),
-            end: randomComputer.position.clone(),
+            start: from.position.clone(),
+            end: to.position.clone(),
             progress: 0,
-            speed: 0.025
+            speed: 0.025,
+            type: 'normal'
         };
-        
+
         particle.position.copy(particle.userData.start);
         this.scene.add(particle);
-        this.animations.push(particle);
-        
+        this.particles.push(particle);
+
         setTimeout(() => {
-            if (particle.parent) this.scene.remove(particle);
-            this.animations = this.animations.filter(p => p !== particle);
-        }, 2000);
+            if (particle.parent) {
+                this.scene.remove(particle);
+            }
+            this.particles = this.particles.filter(p => p !== particle);
+        }, 2500);
     }
-    
-    highlightNode(nodeName, color) {
-        if (this.nodes[nodeName]) {
-            const originalColor = this.nodes[nodeName].material.color.getHex();
-            const originalEmissive = this.nodes[nodeName].material.emissiveIntensity || 0;
-            
-            this.nodes[nodeName].material.color.setHex(color);
-            this.nodes[nodeName].material.emissiveIntensity = 0.5;
-            
-            setTimeout(() => {
-                if (this.nodes[nodeName]) {
-                    this.nodes[nodeName].material.color.setHex(originalColor);
-                    this.nodes[nodeName].material.emissiveIntensity = originalEmissive;
-                }
-            }, 1000);
-        }
-    }
-    
-    highlightAllNodes(color) {
-        Object.values(this.nodes).forEach(node => {
-            const originalColor = node.material.color.getHex();
-            node.material.color.setHex(color);
-            node.material.emissiveIntensity = 0.3;
-            setTimeout(() => {
-                node.material.color.setHex(originalColor);
-                node.material.emissiveIntensity = 0;
-            }, 2000);
-        });
-    }
-    
-    resetNodes() {
-        Object.values(this.nodes).forEach(node => {
-            if (node.userData.type === 'server') {
-                node.material.color.setHex(0x00ff88);
-                node.material.emissiveIntensity = 0.1;
-            } else if (node.userData.type === 'firewall') {
-                node.material.color.setHex(0xff4444);
-                node.material.emissiveIntensity = 0.1;
-            } else if (node.userData.type === 'router') {
-                node.material.color.setHex(0xff8844);
-                node.material.emissiveIntensity = 0.1;
-            } else {
-                node.material.color.setHex(0x44aaff);
-                node.material.emissiveIntensity = 0;
+
+    // ============================================
+    // ПІДСВІЧУВАННЯ ВУЗЛІВ
+    // ============================================
+    highlightNode(name, color) {
+        const node = this.nodes[name];
+        if (!node) return;
+
+        const original = node.children[0]?.material?.color?.getHex?.() || 0xffffff;
+        node.children.forEach(child => {
+            if (child.material && child.material.color) {
+                const orig = child.material.color.getHex();
+                child.material.color.setHex(color);
+                child.material.emissiveIntensity = 0.5;
+                setTimeout(() => {
+                    child.material.color.setHex(orig);
+                    child.material.emissiveIntensity = 0;
+                }, 1500);
             }
         });
-        
-        this.animations.forEach(particle => {
-            if (particle.parent) this.scene.remove(particle);
-        });
-        this.animations = [];
     }
-    
+
+    highlightAllNodes(color) {
+        Object.keys(this.nodes).forEach(key => {
+            this.highlightNode(key, color);
+        });
+    }
+
+    // ============================================
+    // СКИДАННЯ МЕРЕЖІ
+    // ============================================
+    resetNodes() {
+        this.particles.forEach(p => {
+            if (p.parent) this.scene.remove(p);
+        });
+        this.particles = [];
+
+        Object.keys(this.nodes).forEach(key => {
+            const node = this.nodes[key];
+            node.children.forEach(child => {
+                if (child.material && child.material.color) {
+                    if (key === 'server') child.material.color.setHex(0x00ff88);
+                    else if (key === 'firewall') child.material.color.setHex(0xff4444);
+                    else if (key === 'router') child.material.color.setHex(0xff8844);
+                    else child.material.color.setHex(0x4488ff);
+                    child.material.emissiveIntensity = 0;
+                }
+            });
+        });
+    }
+
+    // ============================================
+    // ОНОВЛЕННЯ АНІМАЦІЙ
+    // ============================================
     updateAnimations() {
-        this.animations.forEach(particle => {
-            if (particle.userData.progress < 1) {
-                particle.userData.progress += particle.userData.speed;
-                const t = particle.userData.progress;
-                particle.position.lerpVectors(particle.userData.start, particle.userData.end, t);
-                
+        this.particles.forEach(p => {
+            if (p.userData.progress < 1) {
+                p.userData.progress += p.userData.speed;
+                const t = p.userData.progress;
+                p.position.lerpVectors(p.userData.start, p.userData.end, t);
+
                 // Ефект пульсації
-                const scale = 1 + Math.sin(Date.now() * 0.015) * 0.3;
-                particle.scale.set(scale, scale, scale);
+                const s = 1 + Math.sin(t * 30) * 0.2;
+                p.scale.set(s, s, s);
             }
         });
     }
